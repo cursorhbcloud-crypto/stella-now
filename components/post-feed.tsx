@@ -137,8 +137,13 @@ export function PostFeed() {
 
       {viewer ? (
         <div className="fixed inset-0 z-[80] flex flex-col bg-black" onClick={() => setViewer(null)}>
-          <div className="flex min-h-0 flex-1 items-center justify-center p-3">
-            <img src={viewer.src} alt="" className="max-h-full max-w-full object-contain" onClick={(event) => event.stopPropagation()} />
+          <div className="flex min-h-0 flex-1 items-center justify-center px-3">
+            <img
+              src={viewer.src}
+              alt=""
+              className="h-auto w-auto max-h-[calc(100dvh-5rem)] max-w-full object-contain"
+              onClick={(event) => event.stopPropagation()}
+            />
           </div>
           <button
             type="button"
@@ -186,11 +191,7 @@ function PostRow({
               {pictures.map((picture) => (
                 <div key={picture.src} className="relative overflow-hidden rounded-xl">
                   <button type="button" onClick={() => onOpen(picture)} className="block w-full">
-                    <img
-                      src={previewSrc(picture.src)}
-                      alt=""
-                      className={pictures.length > 1 ? "aspect-square w-full object-cover" : "max-h-80 w-full object-cover"}
-                    />
+                    <img src={previewSrc(picture.src)} alt="" className="block h-auto w-full" />
                   </button>
                   {picture.video ? (
                     <span className="pointer-events-none absolute bottom-2 left-2 rounded-full bg-black/70 px-2 py-0.5 text-xs text-white">
