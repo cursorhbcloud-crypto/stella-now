@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Stella Now</string>
+    <string name="title_activity_main">Stella Now</string>
+    <string name="package_name">now.stella.app</string>
+    <string name="custom_url_scheme">now.stella.app</string>
+</resources>

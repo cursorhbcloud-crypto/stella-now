@@ -1,0 +1,29 @@
+@import "tailwindcss";
+
+:root {
+  --ink: #1c1e2a;
+  --paper: #ffffff;
+  --muted: #8b909c;
+  --line: #e6e8ee;
+  --violet: #7b5cff;
+}
+
+@theme inline {
+  --color-ink: var(--ink);
+  --color-paper: var(--paper);
+  --color-muted: var(--muted);
+  --color-line: var(--line);
+  --color-violet: var(--violet);
+  --font-sans: var(--font-sans-kr), "Malgun Gothic", sans-serif;
+}
+
+body {
+  background: var(--paper);
+  color: var(--ink);
+}
+
+a:focus-visible,
+button:focus-visible {
+  outline: 2px solid var(--violet);
+  outline-offset: 2px;
+}
