@@ -4,7 +4,7 @@ import { OshiButton } from "@/components/oshi-button";
 import { LiveMark } from "@/components/live-mark";
 import { ProfileAvatar } from "@/components/profile-avatar";
 import { isLive } from "@/content/live";
-import { getMember, members, unitName } from "@/content/members";
+import { chzzkLiveUrl, getMember, members, unitName } from "@/content/members";
 
 export function generateStaticParams() {
   return members.map((member) => ({ slug: member.slug }));
@@ -53,7 +53,7 @@ export default async function MemberPage({
       {member.lore ? <p className="mt-5 text-sm leading-7 text-[#5c6270]">{member.lore}</p> : null}
       <div className="mt-6 space-y-2">
         <a
-          href={member.chzzk}
+          href={chzzkLiveUrl(member.chzzk)}
           className="flex h-12 items-center justify-center rounded-xl bg-violet text-[15px] font-medium text-white"
         >
           방송 확인하기

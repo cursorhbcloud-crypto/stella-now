@@ -158,6 +158,11 @@ export function getMember(slug: string) {
   return members.find((member) => member.slug === slug);
 }
 
+export function chzzkLiveUrl(chzzk: string) {
+  const channelId = chzzk.split("/").filter(Boolean).pop() ?? "";
+  return `https://m.chzzk.naver.com/live/${channelId}`;
+}
+
 export function unitName(id: UnitId) {
   return units.find((unit) => unit.id === id)?.name ?? id;
 }

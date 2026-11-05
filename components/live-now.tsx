@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { LiveMark } from "@/components/live-mark";
 import { ProfileAvatar } from "@/components/profile-avatar";
-import { members } from "@/content/members";
+import { chzzkLiveUrl, members } from "@/content/members";
 import { liveInfo } from "@/content/live";
 
 export function LiveNow() {
@@ -43,7 +43,7 @@ export function LiveNow() {
           const info = liveInfo(member.slug);
           return (
             <li key={member.slug}>
-              <a href={member.chzzk} className="flex items-center gap-3 rounded-xl py-1">
+              <a href={chzzkLiveUrl(member.chzzk)} className="flex items-center gap-3 rounded-xl py-1">
                 <ProfileAvatar slug={member.slug} className="size-11" />
                 <span className="min-w-0">
                   <span className="flex items-center gap-2 text-[15px] font-medium">
