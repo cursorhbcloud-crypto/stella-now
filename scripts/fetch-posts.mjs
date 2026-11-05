@@ -115,7 +115,10 @@ function toPost(tweet, handle, slug) {
   if (tweet.reposted_by || author.toLowerCase() !== handle.toLowerCase() || !tweet.text || !tweet.id) return null;
   const createdAt = new Date(Number(tweet.created_timestamp) * 1000).toISOString();
   const images = (tweet.media?.photos ?? []).map((photo) => photo.url).filter(Boolean);
-  const videoPoster = tweet.media?.videos?.[0]?.thumbnail_url;
+  const video = tweet.media?.videos?.[0];
+  const videoPoster = video?.thumbnail_url;
+  const mp4 = (video?.formats ?? []).filter((format) => format.container === "mp4" && format.url);
+  const videoUrl = mp4.at(-1)?.url || (video?.url?.includes(".mp4") ? video.url : undefined);
   const replyTo = tweet.replying_to?.screen_name;
   return {
     id: String(tweet.id),
@@ -127,6 +130,7 @@ function toPost(tweet, handle, slug) {
     createdAt,
     ...(images.length ? { images } : {}),
     ...(videoPoster ? { videoPoster } : {}),
+    ...(videoUrl ? { videoUrl } : {}),
     ...(replyTo ? { replyTo } : {}),
   };
 }

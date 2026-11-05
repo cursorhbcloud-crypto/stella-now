@@ -10,7 +10,7 @@ type Tweet = {
   author?: { screen_name?: string };
   media?: {
     photos?: { url?: string }[];
-    videos?: { thumbnail_url?: string }[];
+    videos?: { thumbnail_url?: string; url?: string; formats?: { container?: string; url?: string }[] }[];
   };
 };
 
@@ -37,7 +37,9 @@ function toPost(tweet: Tweet, handle: string, slug: string): Post | null {
   if (tweet.reposted_by || author.toLowerCase() !== handle.toLowerCase() || !tweet.text || !tweet.id) return null;
   const createdAt = new Date(Number(tweet.created_timestamp) * 1000).toISOString();
   const images = (tweet.media?.photos ?? []).map((photo) => photo.url).filter((url): url is string => Boolean(url));
-  const videoPoster = tweet.media?.videos?.[0]?.thumbnail_url;
+  const video = tweet.media?.videos?.[0];
+  const videoPoster = video?.thumbnail_url;
+  const videoUrl = mp4Url(video);
   const replyTo = tweet.replying_to?.screen_name;
   return {
     id: String(tweet.id),
@@ -49,8 +51,14 @@ function toPost(tweet: Tweet, handle: string, slug: string): Post | null {
     createdAt,
     ...(images.length ? { images } : {}),
     ...(videoPoster ? { videoPoster } : {}),
+    ...(videoUrl ? { videoUrl } : {}),
     ...(replyTo ? { replyTo } : {}),
   };
+}
+
+function mp4Url(video: { url?: string; formats?: { container?: string; url?: string }[] } | undefined) {
+  const files = (video?.formats ?? []).filter((format) => format.container === "mp4" && format.url);
+  return files.at(-1)?.url || (video?.url?.includes(".mp4") ? video.url : undefined);
 }
 
 function seoulLabel(iso: string) {

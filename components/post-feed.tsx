@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { ProfileAvatar } from "@/components/profile-avatar";
 import { members } from "@/content/members";
 import { posts, type Post, type PostPlatform } from "@/content/posts";
+import { saveRemoteFile } from "@/lib/save-file";
 import { fetchOwnPosts } from "@/lib/x-timeline";
 
 const platforms = [
@@ -21,7 +22,19 @@ export function PostFeed() {
   const [cursors, setCursors] = useState<Record<string, string | null>>({});
   const [loaded, setLoaded] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [photo, setPhoto] = useState<string | null>(null);
+  const [viewer, setViewer] = useState<MediaFile | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+
+  async function save(file: MediaFile) {
+    try {
+      await saveRemoteFile(file.fileUrl, file.filename);
+      setNotice("저장을 시작했어요");
+    } catch {
+      window.open(file.fileUrl, "_blank", "noopener");
+      setNotice("저장 화면을 열었어요");
+    }
+    window.setTimeout(() => setNotice(null), 2000);
+  }
 
   useEffect(() => {
     let cancel = false;
@@ -103,7 +116,7 @@ export function PostFeed() {
       ) : (
         <ul className="mt-6 divide-y divide-line border-t border-line">
           {visible.map((post) => (
-            <PostRow key={post.id} post={post} onOpen={setPhoto} />
+            <PostRow key={post.id} post={post} onOpen={setViewer} onSave={(file) => void save(file)} />
           ))}
         </ul>
       )}
@@ -120,26 +133,38 @@ export function PostFeed() {
       ) : null}
       {historyEnded ? <p className="mt-4 text-center text-sm text-muted">마지막 게시물입니다</p> : null}
 
-      {photo ? (
-        <button
-          type="button"
-          aria-label="닫기"
-          onClick={() => setPhoto(null)}
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4"
-        >
-          <img src={photo} alt="" className="max-h-full max-w-full object-contain" />
-        </button>
+      {notice ? <p className="fixed bottom-20 left-1/2 z-50 -translate-x-1/2 rounded-full bg-ink px-4 py-2 text-sm text-white">{notice}</p> : null}
+
+      {viewer ? (
+        <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-black/80 p-4" onClick={() => setViewer(null)}>
+          <img src={viewer.src} alt="" className="max-h-[80%] max-w-full object-contain" />
+          <button
+            type="button"
+            onClick={(event) => {
+              event.stopPropagation();
+              void save(viewer);
+            }}
+            className="mt-4 rounded-full bg-white px-5 py-2 text-sm font-medium text-ink"
+          >
+            저장
+          </button>
+        </div>
       ) : null}
     </div>
   );
 }
 
-function PostRow({ post, onOpen }: { post: Post; onOpen: (src: string) => void }) {
+function PostRow({
+  post,
+  onOpen,
+  onSave,
+}: {
+  post: Post;
+  onOpen: (file: MediaFile) => void;
+  onSave: (file: MediaFile) => void;
+}) {
   const name = members.find((item) => item.slug === post.memberSlug)?.name;
-  const pictures = [
-    ...(post.images ?? []).map((src) => ({ src, video: false })),
-    ...(post.videoPoster ? [{ src: post.videoPoster, video: true }] : []),
-  ];
+  const pictures = mediaFiles(post);
 
   return (
     <li className="py-4">
@@ -157,30 +182,81 @@ function PostRow({ post, onOpen }: { post: Post; onOpen: (src: string) => void }
           {pictures.length > 0 ? (
             <div className={`mt-2 grid gap-1 ${pictures.length > 1 ? "grid-cols-2" : "grid-cols-1"}`}>
               {pictures.map((picture) => (
-                <button
-                  key={picture.src}
-                  type="button"
-                  onClick={() => onOpen(picture.src)}
-                  className="relative overflow-hidden rounded-xl"
-                >
-                  <img
-                    src={previewSrc(picture.src)}
-                    alt=""
-                    className={pictures.length > 1 ? "aspect-square w-full object-cover" : "max-h-80 w-full object-cover"}
-                  />
+                <div key={picture.src} className="relative overflow-hidden rounded-xl">
+                  <button type="button" onClick={() => onOpen(picture)} className="block w-full">
+                    <img
+                      src={previewSrc(picture.src)}
+                      alt=""
+                      className={pictures.length > 1 ? "aspect-square w-full object-cover" : "max-h-80 w-full object-cover"}
+                    />
+                  </button>
                   {picture.video ? (
-                    <span className="absolute bottom-2 left-2 rounded-full bg-black/70 px-2 py-0.5 text-xs text-white">
+                    <span className="pointer-events-none absolute bottom-2 left-2 rounded-full bg-black/70 px-2 py-0.5 text-xs text-white">
                       영상
                     </span>
                   ) : null}
-                </button>
+                  <button
+                    type="button"
+                    onClick={() => onSave(picture)}
+                    className="absolute right-2 top-2 rounded-full bg-black/70 px-2 py-0.5 text-xs text-white"
+                  >
+                    저장
+                  </button>
+                </div>
               ))}
+            </div>
+          ) : null}
+          {post.platform === "x" && /^\d+$/.test(post.id) ? (
+            <div className="mt-3 flex gap-2">
+              <a
+                href={`https://x.com/intent/retweet?tweet_id=${post.id}`}
+                target="_blank"
+                rel="noreferrer"
+                className="rounded-full bg-[#f2f3f7] px-3 py-1.5 text-sm font-medium"
+              >
+                리트윗
+              </a>
+              <a
+                href={`https://x.com/intent/like?tweet_id=${post.id}`}
+                target="_blank"
+                rel="noreferrer"
+                className="rounded-full bg-[#f2f3f7] px-3 py-1.5 text-sm font-medium"
+              >
+                하트
+              </a>
             </div>
           ) : null}
         </div>
       </div>
     </li>
   );
+}
+
+type MediaFile = { src: string; fileUrl: string; filename: string; video: boolean };
+
+function mediaFiles(post: Post): MediaFile[] {
+  const images = (post.images ?? []).map((src) => ({
+    src,
+    fileUrl: src,
+    filename: fileName(src, "jpg"),
+    video: false,
+  }));
+  if (!post.videoPoster) return images;
+  const fileUrl = post.videoUrl || post.videoPoster;
+  return [
+    ...images,
+    {
+      src: post.videoPoster,
+      fileUrl,
+      filename: post.videoUrl ? fileName(post.videoUrl, "mp4") : fileName(post.videoPoster, "jpg"),
+      video: true,
+    },
+  ];
+}
+
+function fileName(url: string, fallbackExt: string) {
+  const name = url.split("?")[0]?.split("/").pop() || `stella-now.${fallbackExt}`;
+  return name.includes(".") ? name : `${name}.${fallbackExt}`;
 }
 
 async function loadPages(targets: { slug: string; x: string }[], cursors: Record<string, string | null>) {

@@ -12,6 +12,7 @@ export type Post = {
   createdAt: string;
   images?: string[];
   videoPoster?: string;
+  videoUrl?: string;
   replyTo?: string;
 };
 
