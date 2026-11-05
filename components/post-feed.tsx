@@ -7,7 +7,7 @@ import { posts, type PostPlatform } from "@/content/posts";
 
 const platforms = [
   { id: "all", label: "전체" },
-  { id: "cafe", label: "카페" },
+  { id: "fanding", label: "팬딩" },
   { id: "x", label: "X" },
 ] as const;
 
@@ -21,7 +21,7 @@ export function PostFeed() {
     const scoped = posts.filter((post) => member === "all" || post.memberSlug === member);
     return {
       all: scoped.length,
-      cafe: scoped.filter((post) => post.platform === "cafe").length,
+      fanding: scoped.filter((post) => post.platform === "fanding").length,
       x: scoped.filter((post) => post.platform === "x").length,
     };
   }, [member]);
@@ -122,5 +122,5 @@ function FilterChip({
 }
 
 function platformLabel(platform: PostPlatform) {
-  return platform === "cafe" ? "카페" : "X";
+  return platform === "fanding" ? "팬딩" : "X";
 }

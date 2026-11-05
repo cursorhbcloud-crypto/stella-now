@@ -2,6 +2,10 @@ import { readFileSync, writeFileSync, existsSync } from "node:fs";
 
 const source = readFileSync(new URL("../content/members.ts", import.meta.url), "utf8");
 const pairs = [...source.matchAll(/slug: "([^"]+)"[\s\S]*?x: "https:\/\/x\.com\/([^"]+)"/g)];
+const names = [...source.matchAll(/slug: "([^"]+)",\s*name: "([^"]+)"/g)].map(([, slug, name]) => ({
+  slug,
+  name,
+}));
 const outPath = new URL("../content/posts.json", import.meta.url);
 const previous = existsSync(outPath) ? JSON.parse(readFileSync(outPath, "utf8")) : [];
 const next = [];
@@ -26,9 +30,55 @@ for (const [, slug, handle] of pairs) {
   await new Promise((resolve) => setTimeout(resolve, 1200));
 }
 
+const keptFanding = previous.filter((post) => post.platform === "fanding");
+try {
+  const fanding = await fetchFanding(names);
+  if (fanding.length === 0) throw new Error("no posts");
+  next.push(...fanding);
+  console.log(`fanding: ${fanding.length}`);
+} catch (error) {
+  next.push(...keptFanding);
+  console.warn(`fanding posts failed: ${error instanceof Error ? error.message : error}`);
+}
+
 next.sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));
 writeFileSync(outPath, `${JSON.stringify(next, null, 2)}\n`);
 console.log(`posts: ${next.length}`);
+
+async function fetchFanding(memberNames) {
+  const url = new URL("https://fanding.kr/rest/post_list");
+  url.searchParams.set("sMemberUrl", "stellive");
+  url.searchParams.set("iLimit", "12");
+  url.searchParams.set("sSortOrder", "recent");
+  url.searchParams.set("sVisibleOnlyOption", "T");
+  const response = await fetch(url, {
+    headers: { "User-Agent": "StellaNow/1.0", Accept: "application/json" },
+  });
+  if (!response.ok) throw new Error(String(response.status));
+  const list = (await response.json())?.aData?.aPostList ?? [];
+  return list
+    .filter((post) => post?.aAuthInfo?.bIsLock === false && post.sTitle && post.sInsDatetime)
+    .slice(0, 12)
+    .map((post) => {
+      const createdAt = new Date(`${String(post.sInsDatetime).replace(" ", "T")}+09:00`).toISOString();
+      const title = String(post.sTitle).replace(/\s+/g, " ").trim();
+      const memberSlug = memberForTitle(title, memberNames);
+      return {
+        id: `fanding-${post.iPostNo}`,
+        platform: "fanding",
+        ...(memberSlug ? { memberSlug } : {}),
+        title,
+        href: `https://fanding.kr/@stellive/post/${post.iPostNo}`,
+        date: seoulLabel(createdAt),
+        createdAt,
+      };
+    });
+}
+
+function memberForTitle(title, memberNames) {
+  const hits = memberNames.filter((member) => title.includes(member.name));
+  return hits.length === 1 ? hits[0].slug : undefined;
+}
 
 async function readTimeline(handle) {
   const response = await fetch(`https://r.jina.ai/https://x.com/${handle}`, {
