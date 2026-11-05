@@ -4,6 +4,8 @@ import Link from "next/link";
 import { useMemo, useState } from "react";
 import { members, units, unitNameEn } from "@/content/members";
 import { ProfileAvatar } from "@/components/profile-avatar";
+import { LiveMark } from "@/components/live-mark";
+import { isLive } from "@/content/live";
 
 const filters = [
   { id: "all", label: "전체" },
@@ -22,16 +24,18 @@ export function MemberList() {
 
   const visible = useMemo(() => {
     const needle = query.trim().toLowerCase();
-    return members.filter((member) => {
-      const unit = units.find((item) => item.id === member.unit);
-      if (filter === "grad") return false;
-      if (filter !== "all" && String(unit?.gen) !== filter) return false;
-      if (!needle) return true;
-      return (
-        member.name.toLowerCase().includes(needle) ||
-        member.nameEn.toLowerCase().includes(needle)
-      );
-    });
+    return members
+      .filter((member) => {
+        const unit = units.find((item) => item.id === member.unit);
+        if (filter === "grad") return false;
+        if (filter !== "all" && String(unit?.gen) !== filter) return false;
+        if (!needle) return true;
+        return (
+          member.name.toLowerCase().includes(needle) ||
+          member.nameEn.toLowerCase().includes(needle)
+        );
+      })
+      .sort((a, b) => Number(isLive(b.slug)) - Number(isLive(a.slug)));
   }, [query, filter]);
 
   return (
@@ -81,9 +85,17 @@ export function MemberList() {
                 href={`/members/${member.slug}`}
                 className="flex items-center gap-4 rounded-2xl bg-[#f2f3f7] px-4 py-3.5"
               >
-                <ProfileAvatar slug={member.slug} />
+                <span className="relative">
+                  <ProfileAvatar slug={member.slug} />
+                  {isLive(member.slug) ? (
+                    <span className="absolute right-0 top-0 size-3 rounded-full border-2 border-[#f2f3f7] bg-[#ef3b3b]" />
+                  ) : null}
+                </span>
                 <span className="min-w-0 flex-1">
-                  <span className="block text-[16px] font-bold leading-tight">{member.name}</span>
+                  <span className="flex items-center gap-2 text-[16px] font-bold leading-tight">
+                    {member.name}
+                    {isLive(member.slug) ? <LiveMark /> : null}
+                  </span>
                   <span className="mt-0.5 block text-sm text-violet">{member.nameEn}</span>
                   <span className="mt-0.5 block text-xs text-[#8b909c]">{unitNameEn(member.unit)}</span>
                 </span>

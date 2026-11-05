@@ -1,0 +1,61 @@
+name: Refresh live status
+
+on:
+  schedule:
+    - cron: "*/5 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+concurrency:
+  group: live
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    outputs:
+      changed: ${{ steps.live.outputs.changed }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - id: live
+        run: |
+          node scripts/fetch-live.mjs
+          if git diff --quiet -- content/live.json; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          fi
+      - if: steps.live.outputs.changed == 'true'
+        run: npm run build
+        env:
+          GITHUB_PAGES: "1"
+      - if: steps.live.outputs.changed == 'true'
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: out
+      - if: steps.live.outputs.changed == 'true'
+        continue-on-error: true
+        run: |
+          git add content/live.json
+          git -c user.name="github-actions[bot]" -c user.email="41898282+github-actions[bot]@users.noreply.github.com" commit -m "Update who is live."
+          git push
+
+  deploy:
+    needs: build
+    if: needs.build.outputs.changed == 'true'
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

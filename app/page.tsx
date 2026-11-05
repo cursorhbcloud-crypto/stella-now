@@ -1,5 +1,6 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
+import { LiveNow } from "@/components/live-now";
 import { getMember } from "@/content/members";
 import { schedule } from "@/content/schedule";
 import { tracks } from "@/content/tracks";
@@ -23,14 +24,7 @@ export default function HomePage() {
           <span className="size-2 rounded-full bg-[#ef3b3b]" />
           LIVE
         </p>
-        <h2 className="mt-3 text-[22px] font-bold leading-tight">멤버 방송 예정</h2>
-        <p className="mt-2 text-sm text-muted">현재 방송 중인 멤버가 없습니다</p>
-        <Link
-          href="/members"
-          className="mt-5 flex h-12 items-center justify-center rounded-xl bg-violet text-[15px] font-medium text-white md:max-w-xs"
-        >
-          방송 확인하기
-        </Link>
+        <LiveNow />
       </section>
 
       <div className="md:grid md:grid-cols-2 md:gap-x-12">

@@ -1,7 +1,9 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { OshiButton } from "@/components/oshi-button";
+import { LiveMark } from "@/components/live-mark";
 import { ProfileAvatar } from "@/components/profile-avatar";
+import { isLive } from "@/content/live";
 import { getMember, members, unitName } from "@/content/members";
 
 export function generateStaticParams() {
@@ -41,7 +43,10 @@ export default async function MemberPage({
         <ProfileAvatar slug={member.slug} className="size-20" />
         <div>
           <p className="text-sm text-muted">{member.nameEn}</p>
-          <h1 className="mt-1 text-[32px] font-bold tracking-tight">{member.name}</h1>
+          <h1 className="mt-1 flex items-center gap-2 text-[32px] font-bold tracking-tight">
+            {member.name}
+            {isLive(member.slug) ? <LiveMark /> : null}
+          </h1>
           <p className="mt-2 text-sm text-muted">{meta}</p>
         </div>
       </div>
@@ -49,8 +54,6 @@ export default async function MemberPage({
       <div className="mt-6 space-y-2">
         <a
           href={member.chzzk}
-          target="_blank"
-          rel="noreferrer"
           className="flex h-12 items-center justify-center rounded-xl bg-violet text-[15px] font-medium text-white"
         >
           방송 확인하기
@@ -71,7 +74,7 @@ export default async function MemberPage({
         >
           X
         </a>
-        {member.profile ? (
+        {member.profile && member.unit !== "abyss" ? (
           <a
             href={member.profile}
             target="_blank"
