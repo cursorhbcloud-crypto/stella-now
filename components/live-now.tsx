@@ -33,6 +33,10 @@ export function LiveNow() {
 
   return (
     <>
+      <p className="flex items-center gap-2 text-sm font-semibold text-[#ef3b3b]">
+        <span className="size-2 rounded-full bg-[#ef3b3b]" />
+        LIVE
+      </p>
       <h2 className="mt-3 text-[22px] font-bold leading-tight">지금 방송 중</h2>
       <ul className="mt-4 space-y-2">
         {onAir.map((member) => {

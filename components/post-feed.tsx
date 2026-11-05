@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { ProfileAvatar } from "@/components/profile-avatar";
 import { members } from "@/content/members";
 import { posts, type PostPlatform } from "@/content/posts";
 
@@ -74,18 +75,23 @@ export function PostFeed() {
         </div>
       ) : (
         <ul className="mt-6 divide-y divide-line border-t border-line">
-          {visible.map((post) => (
-            <li key={post.id}>
-              <a href={post.href} className="block py-4">
-                <p className="text-xs text-muted">
-                  {platformLabel(post.platform)}
-                  {post.memberSlug ? ` · ${members.find((item) => item.slug === post.memberSlug)?.name ?? ""}` : ""}
-                </p>
-                <p className="mt-1 text-[15px] font-medium">{post.title}</p>
-                <p className="mt-1 text-xs text-muted">{post.date}</p>
-              </a>
-            </li>
-          ))}
+          {visible.map((post) => {
+            const name = members.find((item) => item.slug === post.memberSlug)?.name;
+            return (
+              <li key={post.id}>
+                <a href={post.href} target="_blank" rel="noreferrer" className="flex gap-3 py-4">
+                  {post.memberSlug ? <ProfileAvatar slug={post.memberSlug} className="size-10" /> : null}
+                  <span className="min-w-0">
+                    <span className="block text-sm">
+                      <span className="font-medium">{name ?? platformLabel(post.platform)}</span>
+                      <span className="text-muted"> · {post.date}</span>
+                    </span>
+                    <span className="mt-1 block text-[15px] leading-6">{post.title}</span>
+                  </span>
+                </a>
+              </li>
+            );
+          })}
         </ul>
       )}
     </div>

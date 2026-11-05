@@ -29,7 +29,8 @@ jobs:
       - id: live
         run: |
           node scripts/fetch-live.mjs
-          if git diff --quiet -- content/live.json; then
+          node scripts/fetch-posts.mjs
+          if git diff --quiet -- content/live.json content/posts.json; then
             echo "changed=false" >> "$GITHUB_OUTPUT"
           else
             echo "changed=true" >> "$GITHUB_OUTPUT"
@@ -45,8 +46,8 @@ jobs:
       - if: steps.live.outputs.changed == 'true'
         continue-on-error: true
         run: |
-          git add content/live.json
-          git -c user.name="github-actions[bot]" -c user.email="41898282+github-actions[bot]@users.noreply.github.com" commit -m "Update who is live."
+          git add content/live.json content/posts.json
+          git -c user.name="github-actions[bot]" -c user.email="41898282+github-actions[bot]@users.noreply.github.com" commit -m "Update who is live and the latest posts."
           git push
 
   deploy:

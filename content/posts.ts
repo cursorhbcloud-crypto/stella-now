@@ -1,3 +1,5 @@
+import data from "@/content/posts.json";
+
 export type PostPlatform = "cafe" | "x";
 
 export type Post = {
@@ -7,6 +9,7 @@ export type Post = {
   title: string;
   href: string;
   date: string;
+  createdAt: string;
 };
 
-export const posts: Post[] = [];
+export const posts = data as Post[];

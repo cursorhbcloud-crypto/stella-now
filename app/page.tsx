@@ -20,10 +20,6 @@ export default function HomePage() {
       <p className="mt-2 text-[15px] text-muted md:mt-0">스텔라이브 최신 소식</p>
 
       <section className="mt-6 rounded-2xl border border-[#d9dde6] px-5 py-5">
-        <p className="flex items-center gap-2 text-sm font-semibold text-[#ef3b3b]">
-          <span className="size-2 rounded-full bg-[#ef3b3b]" />
-          LIVE
-        </p>
         <LiveNow />
       </section>
 
