@@ -14,7 +14,7 @@ export function SiteHeader() {
   const pathname = usePathname();
 
   return (
-    <header className="sticky top-0 z-20 hidden border-b border-line bg-white md:block">
+    <header className="z-20 hidden shrink-0 border-b border-line bg-white md:block">
       <div className="mx-auto flex h-16 max-w-5xl items-center gap-8 px-8">
         <Link href="/" className="text-[26px] font-bold leading-none tracking-tight whitespace-nowrap">
           Stella Now

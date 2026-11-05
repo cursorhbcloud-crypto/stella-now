@@ -16,5 +16,10 @@ export function useOshi() {
     setSlug(next);
   }
 
-  return { slug, choose };
+  function clear() {
+    window.localStorage.removeItem(KEY);
+    setSlug(null);
+  }
+
+  return { slug, choose, clear };
 }

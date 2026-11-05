@@ -1,6 +1,8 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useOshi } from "@/components/oshi";
 import { ProfileAvatar } from "@/components/profile-avatar";
 import { members } from "@/content/members";
 import { posts, type Post, type PostPlatform } from "@/content/posts";
@@ -16,6 +18,8 @@ const platforms = [
 type PlatformFilter = (typeof platforms)[number]["id"];
 
 export function PostFeed() {
+  const { slug: oshi } = useOshi();
+  const appliedOshi = useRef(false);
   const [platform, setPlatform] = useState<PlatformFilter>("all");
   const [member, setMember] = useState("all");
   const [fresh, setFresh] = useState<Post[]>([]);
@@ -35,6 +39,12 @@ export function PostFeed() {
     }
     window.setTimeout(() => setNotice(null), 2000);
   }
+
+  useEffect(() => {
+    if (appliedOshi.current || !oshi) return;
+    appliedOshi.current = true;
+    setMember(oshi);
+  }, [oshi]);
 
   useEffect(() => {
     let cancel = false;
@@ -81,7 +91,12 @@ export function PostFeed() {
 
   return (
     <div>
-      <h1 className="text-[32px] font-bold tracking-tight">게시물</h1>
+      <div className="flex items-start justify-between">
+        <h1 className="text-[32px] font-bold tracking-tight">게시물</h1>
+        <Link href="/settings" aria-label="설정" className="grid size-10 place-items-center text-ink md:hidden">
+          <GearIcon />
+        </Link>
+      </div>
       <p className="mt-1 text-[15px] text-muted">스텔라이브 최신 소식</p>
 
       <p className="mt-6 text-sm text-muted">플랫폼</p>
@@ -315,4 +330,13 @@ function FilterChip({
 
 function platformLabel(platform: PostPlatform) {
   return platform === "fanding" ? "팬딩" : "X";
+}
+
+function GearIcon() {
+  return (
+    <svg viewBox="0 0 24 24" className="size-6" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <circle cx="12" cy="12" r="3" />
+      <path d="M12 3.6v2.1M12 18.3v2.1M4.8 6.6l1.5 1.5M17.7 15.9l1.5 1.5M3.6 12h2.1M18.3 12h2.1M4.8 17.4l1.5-1.5M17.7 8.1l1.5-1.5" />
+    </svg>
+  );
 }

@@ -19,9 +19,9 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html lang="ko" className={`${sans.variable} h-full antialiased`}>
-      <body className="min-h-full bg-white font-sans text-ink">
+      <body className="flex h-dvh flex-col overflow-hidden bg-white font-sans text-ink">
         <SiteHeader />
-        <main className="mx-auto min-h-full w-full max-w-md px-5 pb-24 pt-5 md:max-w-5xl md:px-8 md:pb-16 md:pt-10">
+        <main className="mx-auto w-full max-w-md flex-1 overflow-y-auto px-5 pb-24 pt-5 md:max-w-5xl md:px-8 md:pb-16 md:pt-10">
           {children}
         </main>
         <BottomNav />

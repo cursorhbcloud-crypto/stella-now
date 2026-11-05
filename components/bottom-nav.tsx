@@ -14,7 +14,7 @@ export function BottomNav() {
   const pathname = usePathname();
 
   return (
-    <nav className="fixed inset-x-0 bottom-0 z-20 border-t border-line bg-white md:hidden">
+    <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-line bg-white md:hidden">
       <div className="mx-auto grid max-w-md grid-cols-4 px-2 pb-[max(8px,env(safe-area-inset-bottom))] pt-2">
         {tabs.map((tab) => {
           const active =
