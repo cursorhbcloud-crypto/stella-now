@@ -1,8 +1,8 @@
 export const units = [
-  { id: "everys", name: "에버리스" },
-  { id: "universe", name: "유니버스" },
-  { id: "cliche", name: "클리셰" },
-  { id: "abyss", name: "어비스" },
+  { id: "everys", name: "에버리스", en: "Everys", gen: 1 },
+  { id: "universe", name: "유니버스", en: "Universe", gen: 2 },
+  { id: "cliche", name: "클리셰", en: "Cliché", gen: 3 },
+  { id: "abyss", name: "어비스", en: "ABYSS", gen: 4 },
 ] as const;
 
 export type UnitId = (typeof units)[number]["id"];
@@ -145,6 +145,10 @@ export function getMember(slug: string) {
 
 export function unitName(id: UnitId) {
   return units.find((unit) => unit.id === id)?.name ?? id;
+}
+
+export function unitNameEn(id: UnitId) {
+  return units.find((unit) => unit.id === id)?.en ?? id;
 }
 
 export function shortName(name: string) {
