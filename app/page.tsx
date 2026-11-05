@@ -41,12 +41,21 @@ export default function HomePage() {
           <ul className="space-y-3">
             {schedule.map((item) => (
               <li key={`${item.month}-${item.day}`}>
-                <a href={item.href} className="block">
-                  <p className="text-xs text-muted">
-                    {item.month}월 {item.day}일
-                  </p>
-                  <p className="mt-0.5 text-[15px] font-medium">{item.title}</p>
-                </a>
+                {item.href.startsWith("/") ? (
+                  <Link href={item.href} className="block">
+                    <p className="text-xs text-muted">
+                      {item.month}월 {item.day}일
+                    </p>
+                    <p className="mt-0.5 text-[15px] font-medium">{item.title}</p>
+                  </Link>
+                ) : (
+                  <a href={item.href} className="block">
+                    <p className="text-xs text-muted">
+                      {item.month}월 {item.day}일
+                    </p>
+                    <p className="mt-0.5 text-[15px] font-medium">{item.title}</p>
+                  </a>
+                )}
               </li>
             ))}
           </ul>

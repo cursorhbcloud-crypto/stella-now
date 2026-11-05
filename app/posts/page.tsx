@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { getMember } from "@/content/members";
 import { fandingShop, goods } from "@/content/goods";
 import { schedule } from "@/content/schedule";
@@ -12,13 +13,23 @@ export default function PostsPage() {
       <ul className="mt-6 space-y-3 md:grid md:grid-cols-2 md:gap-3 md:space-y-0 lg:grid-cols-3">
         {schedule.map((item) => (
           <li key={`s-${item.month}-${item.day}`}>
-            <a href={item.href} className="block rounded-2xl border border-line px-4 py-4">
-              <p className="text-xs font-medium text-violet">공지</p>
-              <p className="mt-1 text-[15px] font-medium">{item.title}</p>
-              <p className="mt-1 text-xs text-muted">
-                {item.month}월 {item.day}일
-              </p>
-            </a>
+            {item.href.startsWith("/") ? (
+              <Link href={item.href} className="block rounded-2xl border border-line px-4 py-4">
+                <p className="text-xs font-medium text-violet">공지</p>
+                <p className="mt-1 text-[15px] font-medium">{item.title}</p>
+                <p className="mt-1 text-xs text-muted">
+                  {item.month}월 {item.day}일
+                </p>
+              </Link>
+            ) : (
+              <a href={item.href} className="block rounded-2xl border border-line px-4 py-4">
+                <p className="text-xs font-medium text-violet">공지</p>
+                <p className="mt-1 text-[15px] font-medium">{item.title}</p>
+                <p className="mt-1 text-xs text-muted">
+                  {item.month}월 {item.day}일
+                </p>
+              </a>
+            )}
           </li>
         ))}
         {tracks.map((track) => {
