@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { OshiButton } from "@/components/oshi-button";
+import { ProfileAvatar } from "@/components/profile-avatar";
 import { getMember, members, unitName } from "@/content/members";
 
 export function generateStaticParams() {
@@ -36,9 +37,14 @@ export default async function MemberPage({
 
   return (
     <article className="md:max-w-lg">
-      <p className="text-sm text-muted">{member.nameEn}</p>
-      <h1 className="mt-1 text-[32px] font-bold tracking-tight">{member.name}</h1>
-      <p className="mt-2 text-sm text-muted">{meta}</p>
+      <div className="flex items-center gap-4">
+        <ProfileAvatar slug={member.slug} className="size-20" />
+        <div>
+          <p className="text-sm text-muted">{member.nameEn}</p>
+          <h1 className="mt-1 text-[32px] font-bold tracking-tight">{member.name}</h1>
+          <p className="mt-2 text-sm text-muted">{meta}</p>
+        </div>
+      </div>
       {member.lore ? <p className="mt-5 text-sm leading-7 text-[#5c6270]">{member.lore}</p> : null}
       <div className="mt-6 space-y-2">
         <a
@@ -56,6 +62,14 @@ export default async function MemberPage({
           className="flex h-12 items-center justify-center rounded-xl border border-line text-sm font-medium"
         >
           유튜브
+        </a>
+        <a
+          href={member.x}
+          target="_blank"
+          rel="noreferrer"
+          className="flex h-12 items-center justify-center rounded-xl border border-line text-sm font-medium"
+        >
+          X
         </a>
         {member.profile ? (
           <a

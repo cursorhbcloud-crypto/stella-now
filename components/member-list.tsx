@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import { members, units, unitNameEn } from "@/content/members";
+import { ProfileAvatar } from "@/components/profile-avatar";
 
 const filters = [
   { id: "all", label: "전체" },
@@ -80,9 +81,7 @@ export function MemberList() {
                 href={`/members/${member.slug}`}
                 className="flex items-center gap-4 rounded-2xl bg-[#f2f3f7] px-4 py-3.5"
               >
-                <span className="grid size-14 shrink-0 place-items-center rounded-full bg-violet text-white">
-                  <PersonIcon />
-                </span>
+                <ProfileAvatar slug={member.slug} />
                 <span className="min-w-0 flex-1">
                   <span className="block text-[16px] font-bold leading-tight">{member.name}</span>
                   <span className="mt-0.5 block text-sm text-violet">{member.nameEn}</span>
@@ -103,15 +102,6 @@ function SearchIcon() {
     <svg viewBox="0 0 24 24" className="size-5 shrink-0 text-violet" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
       <circle cx="11" cy="11" r="6.5" />
       <path d="M16 16.5 20 20.5" strokeLinecap="round" />
-    </svg>
-  );
-}
-
-function PersonIcon() {
-  return (
-    <svg viewBox="0 0 24 24" className="size-7" fill="currentColor" aria-hidden>
-      <circle cx="12" cy="8.2" r="3.3" />
-      <path d="M5.4 19.4c.8-3.3 3.3-5.1 6.6-5.1s5.8 1.8 6.6 5.1v.6H5.4z" />
     </svg>
   );
 }
