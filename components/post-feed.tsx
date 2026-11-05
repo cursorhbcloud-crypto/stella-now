@@ -136,15 +136,17 @@ export function PostFeed() {
       {notice ? <p className="fixed bottom-20 left-1/2 z-50 -translate-x-1/2 rounded-full bg-ink px-4 py-2 text-sm text-white">{notice}</p> : null}
 
       {viewer ? (
-        <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-black/80 p-4" onClick={() => setViewer(null)}>
-          <img src={viewer.src} alt="" className="max-h-[80%] max-w-full object-contain" />
+        <div className="fixed inset-0 z-[80] flex flex-col bg-black" onClick={() => setViewer(null)}>
+          <div className="flex min-h-0 flex-1 items-center justify-center p-3">
+            <img src={viewer.src} alt="" className="max-h-full max-w-full object-contain" onClick={(event) => event.stopPropagation()} />
+          </div>
           <button
             type="button"
             onClick={(event) => {
               event.stopPropagation();
               void save(viewer);
             }}
-            className="mt-4 rounded-full bg-white px-5 py-2 text-sm font-medium text-ink"
+            className="mb-[max(16px,env(safe-area-inset-bottom))] self-center rounded-full bg-white px-5 py-2 text-sm font-medium text-ink"
           >
             저장
           </button>
