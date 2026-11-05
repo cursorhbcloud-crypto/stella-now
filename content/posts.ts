@@ -10,6 +10,9 @@ export type Post = {
   href: string;
   date: string;
   createdAt: string;
+  images?: string[];
+  videoPoster?: string;
+  replyTo?: string;
 };
 
 export const posts = data as Post[];

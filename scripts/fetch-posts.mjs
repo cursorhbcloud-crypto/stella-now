@@ -13,21 +13,27 @@ const next = [];
 for (const [, slug, handle] of pairs) {
   const kept = previous.filter((post) => post.memberSlug === slug && post.platform === "x");
   try {
-    let text = await readTimeline(handle);
-    let posts = parsePosts(text, slug);
-    if (posts.length === 0) {
-      text = await readTimeline(handle);
-      posts = parsePosts(text, slug);
+    let posts = [];
+    let lastError = new Error("no timeline");
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      try {
+        posts = await fetchOwnPosts(handle, slug);
+        if (posts.length === 0) throw new Error("no timeline");
+        lastError = undefined;
+        break;
+      } catch (error) {
+        lastError = error;
+        await new Promise((resolve) => setTimeout(resolve, 800));
+      }
     }
-    if (posts.length === 0) posts = await postsFromReplies(text, handle, slug);
-    if (posts.length === 0) throw new Error("no timeline");
+    if (lastError) throw lastError;
     next.push(...posts);
     console.log(`${slug}: ${posts.length} posts`);
   } catch (error) {
     next.push(...kept);
     console.warn(`posts failed for ${slug}: ${error instanceof Error ? error.message : error}`);
   }
-  await new Promise((resolve) => setTimeout(resolve, 1200));
+  await new Promise((resolve) => setTimeout(resolve, 400));
 }
 
 const keptFanding = previous.filter((post) => post.platform === "fanding");
@@ -63,6 +69,7 @@ async function fetchFanding(memberNames) {
       const createdAt = new Date(`${String(post.sInsDatetime).replace(" ", "T")}+09:00`).toISOString();
       const title = String(post.sTitle).replace(/\s+/g, " ").trim();
       const memberSlug = memberForTitle(title, memberNames);
+      const image = post.sPostThumbnailUrl;
       return {
         id: `fanding-${post.iPostNo}`,
         platform: "fanding",
@@ -71,6 +78,7 @@ async function fetchFanding(memberNames) {
         href: `https://fanding.kr/@stellive/post/${post.iPostNo}`,
         date: seoulLabel(createdAt),
         createdAt,
+        ...(image ? { images: [image] } : {}),
       };
     });
 }
@@ -80,82 +88,47 @@ function memberForTitle(title, memberNames) {
   return hits.length === 1 ? hits[0].slug : undefined;
 }
 
-async function readTimeline(handle) {
-  const response = await fetch(`https://r.jina.ai/https://x.com/${handle}`, {
-    headers: {
-    "User-Agent": "StellaNow/1.0",
-    Accept: "text/plain",
-    "X-With-Links-Summary": "true",
-  },
-  });
-  if (!response.ok) throw new Error(String(response.status));
-  return response.text();
-}
-
-async function postsFromReplies(text, handle, slug) {
-  const ids = [...new Set([...text.matchAll(/in_reply_to=(\d+)/g)].map((match) => match[1]))]
-    .sort((a, b) => (BigInt(a) > BigInt(b) ? -1 : 1))
-    .slice(0, 4);
+async function fetchOwnPosts(handle, slug) {
   const posts = [];
-  for (const id of ids) {
-    const response = await fetch(`https://api.fxtwitter.com/${handle}/status/${id}`, {
-      headers: { "User-Agent": "StellaNow/1.0" },
+  let cursor;
+  for (let page = 0; page < 2 && posts.length < 12; page += 1) {
+    const url = new URL(`https://api.fxtwitter.com/2/profile/${handle}/statuses`);
+    url.searchParams.set("with_replies", "1");
+    if (cursor) url.searchParams.set("cursor", cursor);
+    const response = await fetch(url, {
+      headers: { "User-Agent": "StellaNow/1.0", Accept: "application/json" },
     });
-    if (!response.ok) continue;
-    const tweet = (await response.json())?.tweet;
-    if (!tweet?.text || tweet.replying_to) continue;
-    const createdAt = new Date(Number(tweet.created_timestamp) * 1000).toISOString();
-    posts.push({
-      id: String(tweet.id),
-      platform: "x",
-      memberSlug: slug,
-      title: tweet.text.replace(/\s+/g, " ").trim(),
-      href: tweet.url,
-      date: seoulLabel(createdAt),
-      createdAt,
-    });
+    if (!response.ok) throw new Error(String(response.status));
+    const data = await response.json();
+    for (const tweet of data.results ?? []) {
+      const post = toPost(tweet, handle, slug);
+      if (post) posts.push(post);
+    }
+    cursor = data.cursor?.bottom;
+    if (!cursor) break;
   }
   return posts;
 }
 
-function parsePosts(text, slug) {
-  const seen = new Set();
-  const posts = [];
-  const pattern = /\[([^\]]+)\]\(https:\/\/x\.com\/([A-Za-z0-9_]+)\/status\/(\d+)\)\s+([\s\S]*?)\s+\[\d/gi;
-
-  for (const match of text.matchAll(pattern)) {
-    const account = match[2];
-    const id = match[3];
-    if (seen.has(id)) continue;
-    const title = clean(match[4]);
-    if (!title) continue;
-    seen.add(id);
-    const createdAt = snowflakeIso(id);
-    posts.push({
-      id,
-      platform: "x",
-      memberSlug: slug,
-      title,
-      href: `https://x.com/${account}/status/${id}`,
-      date: seoulLabel(createdAt),
-      createdAt,
-    });
-  }
-
-  return posts.sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1)).slice(0, 4);
-}
-
-function clean(text) {
-  return text
-    .replace(/!\[[^\]]*\]\([^)]*\)/g, "")
-    .replace(/\[([^\]]*)\]\([^)]*\)/g, (_, label) => (label.startsWith("http") ? "" : label))
-    .replace(/\s+/g, " ")
-    .trim();
-}
-
-function snowflakeIso(id) {
-  const ms = Number((BigInt(id) >> 22n) + 1288834974657n);
-  return new Date(ms).toISOString();
+function toPost(tweet, handle, slug) {
+  const author = tweet.author?.screen_name ?? "";
+  if (tweet.reposted_by || author.toLowerCase() !== handle.toLowerCase() || !tweet.text || !tweet.id) return null;
+  const createdAt = new Date(Number(tweet.created_timestamp) * 1000).toISOString();
+  const images = (tweet.media?.photos ?? []).map((photo) => photo.url).filter(Boolean);
+  const videoPoster = tweet.media?.videos?.[0]?.thumbnail_url;
+  const replyTo = tweet.replying_to?.screen_name;
+  return {
+    id: String(tweet.id),
+    platform: "x",
+    memberSlug: slug,
+    title: String(tweet.text).replace(/\s+/g, " ").trim(),
+    href: tweet.url || `https://x.com/${author}/status/${tweet.id}`,
+    date: seoulLabel(createdAt),
+    createdAt,
+    ...(images.length ? { images } : {}),
+    ...(videoPoster ? { videoPoster } : {}),
+    ...(replyTo ? { replyTo } : {}),
+  };
 }
 
 function seoulLabel(iso) {
