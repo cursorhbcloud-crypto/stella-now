@@ -15,7 +15,10 @@ export function LiveNow() {
   );
   const [refreshing, setRefreshing] = useState(false);
   const [failed, setFailed] = useState(false);
-  const onAir = members.filter((member) => statuses[member.slug]?.live);
+  const onAir = members
+    .filter((member) => statuses[member.slug]?.live)
+    .sort((a, b) => (statuses[b.slug]?.viewers ?? 0) - (statuses[a.slug]?.viewers ?? 0));
+  const shown = onAir.slice(0, 3);
 
   useEffect(() => {
     const timer = window.setInterval(() => setNow(Date.now()), 30_000);
@@ -73,27 +76,35 @@ export function LiveNow() {
           </Link>
         </>
       ) : (
-        <ul className="mt-4 space-y-2">
-          {onAir.map((member) => {
-            const info = statuses[member.slug];
-            return (
-              <li key={member.slug}>
-                <a href={chzzkLiveUrl(member.chzzk)} className="flex items-center gap-3 rounded-xl py-1">
-                  <ProfileAvatar slug={member.slug} className="size-11" />
-                  <span className="min-w-0">
-                    <span className="flex items-center gap-2 text-[15px] font-medium">
-                      {member.name}
-                      <LiveMark />
+        <>
+          <ul className="mt-4 space-y-2">
+            {shown.map((member) => {
+              const info = statuses[member.slug];
+              return (
+                <li key={member.slug}>
+                  <a href={chzzkLiveUrl(member.chzzk)} className="flex items-center gap-3 rounded-xl py-1">
+                    <ProfileAvatar slug={member.slug} className="size-11" />
+                    <span className="min-w-0">
+                      <span className="flex items-center gap-2 text-[15px] font-medium">
+                        {member.name}
+                        <LiveMark />
+                      </span>
+                      <span className="mt-0.5 block text-xs text-muted">
+                        {broadcastLine(info?.openDate ?? null, info?.viewers ?? 0, now)}
+                      </span>
                     </span>
-                    <span className="mt-0.5 block text-xs text-muted">
-                      {broadcastLine(info?.openDate ?? null, info?.viewers ?? 0, now)}
-                    </span>
-                  </span>
-                </a>
-              </li>
-            );
-          })}
-        </ul>
+                  </a>
+                </li>
+              );
+            })}
+          </ul>
+          <Link
+            href="/members"
+            className="mt-5 flex h-12 items-center justify-center rounded-xl bg-violet text-[15px] font-medium text-white md:max-w-xs"
+          >
+            방송 확인하기
+          </Link>
+        </>
       )}
     </>
   );
