@@ -13,6 +13,7 @@ import { fetchOwnPosts, fetchTaggedPosts, fetchTweetCount } from "@/lib/x-timeli
 const platforms = [
   { id: "all", label: "전체" },
   { id: "fanding", label: "팬딩" },
+  { id: "cafe", label: "카페" },
   { id: "x", label: "X" },
 ] as const;
 
@@ -236,6 +237,7 @@ export function PostFeed() {
     return {
       all: scoped.length,
       fanding: scoped.filter((post) => post.platform === "fanding").length,
+      cafe: scoped.filter((post) => post.platform === "cafe").length,
       x: scoped.filter((post) => post.platform === "x").length,
     };
   }, [feed, member, tag]);
@@ -250,7 +252,7 @@ export function PostFeed() {
   });
 
   const historyTargets = members.filter((item) => member === "all" || item.slug === member);
-  const showTweetHistory = member !== "none" && (tag === "all" || tag === "none") && platform !== "fanding";
+  const showTweetHistory = member !== "none" && (tag === "all" || tag === "none") && (platform === "all" || platform === "x");
   const canLoadMore = loaded && !paging && showTweetHistory && historyTargets.some((item) => cursors[item.slug]);
   const historyEnded = loaded && !paging && showTweetHistory && historyTargets.length > 0 && historyTargets.every((item) => cursors[item.slug] === null);
   const rows = visible.slice(0, shown);
@@ -290,7 +292,7 @@ export function PostFeed() {
           {tag !== "all" && tag !== "none" ? <FilterChip active label={tag} onClick={() => setTag("all")} /> : null}
         </div>
       ) : null}
-      {totalsReady && scopeTotal > 0 && member !== "none" ? (
+      {showTweetHistory && totalsReady && scopeTotal > 0 ? (
         <p className="mt-3 text-sm leading-6 text-muted">
           {member === "all" ? "멤버 계정" : "이 계정"}에 있는 글은 {scopeTotal.toLocaleString("ko-KR")}개입니다. 지금까지 직접 쓴 글 {loadedTweets.toLocaleString("ko-KR")}개를 불러왔습니다.
           {paging ? " 이전 글을 이어서 가져오는 중입니다." : ""}
@@ -322,7 +324,7 @@ export function PostFeed() {
                 />
               ))}
             </div>
-            {totalsReady && scopeTotal > 0 && member !== "none" ? (
+            {showTweetHistory && totalsReady && scopeTotal > 0 ? (
               <p className="mt-3 text-sm leading-6 text-muted">
                 {member === "all" ? "멤버 계정" : "이 계정"}에 있는 글은 {scopeTotal.toLocaleString("ko-KR")}개입니다. 화면의 숫자는 지금까지 불러온 직접 쓴 글입니다.
               </p>
@@ -383,7 +385,7 @@ export function PostFeed() {
       )}
       {shown < visible.length ? <LoadTail onReach={() => setShown((count) => count + 40)} /> : null}
 
-      {paging && rows.length > 0 && member !== "none" ? (
+      {paging && rows.length > 0 && showTweetHistory ? (
         <p className="mt-4 text-center text-sm text-muted">이전 글을 가져오는 중 · {loadedTweets.toLocaleString("ko-KR")}개</p>
       ) : null}
       {canLoadMore ? (
@@ -405,6 +407,7 @@ export function PostFeed() {
             <img
               src={viewer.src}
               alt=""
+              referrerPolicy={imageReferrer(viewer.src)}
               className="h-auto w-auto max-h-[calc(100dvh-5rem)] max-w-full object-contain"
               onClick={(event) => event.stopPropagation()}
             />
@@ -455,7 +458,7 @@ function PostRow({
               {pictures.map((picture) => (
                 <div key={picture.src} className="relative overflow-hidden rounded-xl">
                   <button type="button" onClick={() => onOpen(picture)} className="block w-full">
-                    <img src={previewSrc(picture.src)} alt="" className="block h-auto w-full max-w-full" />
+                    <img src={previewSrc(picture.src)} alt="" referrerPolicy={imageReferrer(picture.src)} className="block h-auto w-full max-w-full" />
                   </button>
                   {picture.video ? (
                     <span className="pointer-events-none absolute bottom-2 left-2 rounded-full bg-black/70 px-2 py-0.5 text-xs text-white">
@@ -568,6 +571,10 @@ function previewSrc(src: string) {
   return src.replace("name=orig", "name=small");
 }
 
+function imageReferrer(src: string) {
+  return src.includes("pstatic.net") ? "no-referrer" : undefined;
+}
+
 function LoadTail({ onReach }: { onReach: () => void }) {
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -629,7 +636,9 @@ function RepostIcon() {
 }
 
 function platformLabel(platform: PostPlatform) {
-  return platform === "fanding" ? "팬딩" : "X";
+  if (platform === "fanding") return "팬딩";
+  if (platform === "cafe") return "카페";
+  return "X";
 }
 
 function FilterIcon() {

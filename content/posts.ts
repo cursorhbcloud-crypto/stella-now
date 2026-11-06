@@ -1,6 +1,6 @@
 import data from "@/content/posts.json";
 
-export type PostPlatform = "fanding" | "x";
+export type PostPlatform = "fanding" | "cafe" | "x";
 
 export type Post = {
   id: string;

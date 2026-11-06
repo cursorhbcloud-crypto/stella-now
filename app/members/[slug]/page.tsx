@@ -6,7 +6,7 @@ import { OshiButton } from "@/components/oshi-button";
 import { ProfileAvatar } from "@/components/profile-avatar";
 import { liveInfo } from "@/content/live";
 import { chzzkLiveUrl, getMember, members, shortName, unitName, unitTone, units } from "@/content/members";
-import { posts } from "@/content/posts";
+import { posts, type PostPlatform } from "@/content/posts";
 import { tracks } from "@/content/tracks";
 
 export function generateStaticParams() {
@@ -144,7 +144,7 @@ export default async function MemberPage({
                         ) : null}
                         <span className="min-w-0">
                           <span className="block text-[11px] text-muted">
-                            {post.platform === "fanding" ? "팬딩" : "X"} · {post.date}
+                            {platformLabel(post.platform)} · {post.date}
                           </span>
                           <span className="mt-1 block line-clamp-2 text-sm leading-5">{post.title}</span>
                         </span>
@@ -209,6 +209,12 @@ function memberPosts(slug: string) {
     .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
   const notes = own.filter((post) => !post.replyTo);
   return (notes.length >= 3 ? notes : own).slice(0, 4);
+}
+
+function platformLabel(platform: PostPlatform) {
+  if (platform === "fanding") return "팬딩";
+  if (platform === "cafe") return "카페";
+  return "X";
 }
 
 function previewSrc(src?: string) {

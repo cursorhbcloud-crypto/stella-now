@@ -66,6 +66,17 @@ try {
   console.warn(`fanding posts failed: ${error instanceof Error ? error.message : error}`);
 }
 
+const keptCafe = previous.filter((post) => post.platform === "cafe");
+try {
+  const cafe = await fetchCafeNotices(names);
+  if (cafe.length === 0) throw new Error("no posts");
+  next.push(...cafe);
+  console.log(`cafe: ${cafe.length}`);
+} catch (error) {
+  next.push(...keptCafe);
+  console.warn(`cafe posts failed: ${error instanceof Error ? error.message : error}`);
+}
+
 next.sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));
 writeFileSync(outPath, `${JSON.stringify(next, null, 2)}\n`);
 console.log(`posts: ${next.length}`);
@@ -100,6 +111,69 @@ async function fetchFanding(memberNames) {
         ...(image ? { images: [image] } : {}),
       };
     });
+}
+
+async function fetchCafeNotices(memberNames) {
+  const posts = [];
+  const seen = new Set();
+  for (let page = 1; page <= 4; page += 1) {
+    const url = new URL("https://apis.naver.com/cafe-web/cafe2/ArticleListV2dot1.json");
+    url.searchParams.set("search.clubid", "29424353");
+    url.searchParams.set("search.menuid", "130");
+    url.searchParams.set("search.page", String(page));
+    url.searchParams.set("search.perPage", "15");
+    const response = await fetch(url, {
+      headers: {
+        Accept: "application/json",
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+        Referer: "https://cafe.naver.com/tteokbokk1",
+      },
+    });
+    if (!response.ok) throw new Error(String(response.status));
+    const result = (await response.json())?.message?.result;
+    for (const article of result?.articleList ?? []) {
+      const post = toCafeNotice(article, memberNames);
+      if (!post || seen.has(post.id)) continue;
+      seen.add(post.id);
+      posts.push(post);
+    }
+    if (!result?.hasNext) break;
+  }
+  return posts;
+}
+
+function toCafeNotice(article, memberNames) {
+  if (!article?.articleId || article.openArticle === false || article.blindArticle || article.replyArticle) return null;
+  const title = decodeHtml(String(article.subject ?? "")).replace(/\s+/g, " ").trim();
+  const created = new Date(Number(article.writeDateTimestamp));
+  if (!title || Number.isNaN(created.getTime())) return null;
+  const createdAt = created.toISOString();
+  const memberSlug = memberForTitle(title, memberNames);
+  const image = cafeImage(article.representImage);
+  return {
+    id: `cafe-${article.articleId}`,
+    platform: "cafe",
+    ...(memberSlug ? { memberSlug } : {}),
+    title,
+    href: `https://cafe.naver.com/tteokbokk1/${article.articleId}`,
+    date: seoulLabel(createdAt),
+    createdAt,
+    ...(image ? { images: [image] } : {}),
+  };
+}
+
+function decodeHtml(value) {
+  return value
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;|&apos;/g, "'")
+    .replace(/&amp;/g, "&");
+}
+
+function cafeImage(url) {
+  if (!url || String(url).includes(".m3u8")) return undefined;
+  return String(url).replace(/type=f\d+_\d+/, "type=w800");
 }
 
 function memberForTitle(title, memberNames) {

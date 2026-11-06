@@ -1,5 +1,5 @@
 export async function saveRemoteFile(url: string, filename: string) {
-  const response = await fetch(url);
+  const response = await fetch(url, url.includes("pstatic.net") ? { referrerPolicy: "no-referrer" } : undefined);
   if (!response.ok) throw new Error(String(response.status));
   const blob = await response.blob();
   const objectUrl = URL.createObjectURL(blob);
