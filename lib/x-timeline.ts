@@ -96,6 +96,17 @@ function cleanYahooText(text: string) {
   return text.replace(/\tSTART\t|\tEND\t/g, "").replace(/\s+/g, " ").trim();
 }
 
+export async function fetchTweetCount(handle: string) {
+  try {
+    const response = await fetchWithTimeout(new URL(`https://api.fxtwitter.com/${handle}`));
+    if (!response.ok) return null;
+    const data = (await response.json()) as { user?: { tweets?: number } };
+    return typeof data.user?.tweets === "number" ? data.user.tweets : null;
+  } catch {
+    return null;
+  }
+}
+
 export async function fetchOwnPosts(handle: string, slug: string, cursor?: string) {
   const url = new URL(`https://api.fxtwitter.com/2/profile/${handle}/statuses`);
   url.searchParams.set("count", "100");

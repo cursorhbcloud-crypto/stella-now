@@ -8,7 +8,7 @@ import { fanartTags, members, shortName } from "@/content/members";
 import { posts, type Post, type PostPlatform } from "@/content/posts";
 import { ExternalLink } from "@/components/external-link";
 import { saveRemoteFile } from "@/lib/save-file";
-import { fetchOwnPosts, fetchTaggedPosts } from "@/lib/x-timeline";
+import { fetchOwnPosts, fetchTaggedPosts, fetchTweetCount } from "@/lib/x-timeline";
 
 const platforms = [
   { id: "all", label: "전체" },
@@ -16,25 +16,36 @@ const platforms = [
   { id: "x", label: "X" },
 ] as const;
 
+const kinds = [
+  { id: "all", label: "전체" },
+  { id: "tweets", label: "멤버 트윗" },
+  { id: "fanart", label: "팬아트" },
+] as const;
+
 type PlatformFilter = (typeof platforms)[number]["id"];
+type KindFilter = (typeof kinds)[number]["id"];
 
 export function PostFeed() {
   const { slug: oshi } = useOshi();
   const appliedOshi = useRef(false);
   const [platform, setPlatform] = useState<PlatformFilter>("all");
+  const [kind, setKind] = useState<KindFilter>("all");
   const [member, setMember] = useState("all");
   const [tag, setTag] = useState("all");
   const [fresh, setFresh] = useState<Post[]>([]);
   const [cursors, setCursors] = useState<Record<string, string | null>>({});
+  const [totals, setTotals] = useState<Record<string, number>>({});
   const cursorRef = useRef<Record<string, string | null>>({});
-  const walkGen = useRef<Record<string, number>>({});
+  const priorityRef = useRef("all");
   const [loaded, setLoaded] = useState(false);
-  const [loading, setLoading] = useState(false);
+  const [walkId, setWalkId] = useState(0);
   const [paging, setPaging] = useState(false);
+  const [tagPaging, setTagPaging] = useState(false);
   const [shown, setShown] = useState(40);
   const [viewer, setViewer] = useState<MediaFile | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [filtersOpen, setFiltersOpen] = useState(false);
+  priorityRef.current = member;
 
   async function save(file: MediaFile) {
     try {
@@ -71,17 +82,30 @@ export function PostFeed() {
 
   useEffect(() => {
     setShown(40);
-  }, [member, tag, platform]);
+  }, [member, tag, platform, kind]);
 
   useEffect(() => {
-    if (member === "all" && tag === "all") setPaging(false);
-  }, [member, tag]);
+    let cancel = false;
+    void Promise.all(
+      members.map(async (item) => {
+        const handle = item.x.split("/").filter(Boolean).pop() ?? "";
+        const count = await fetchTweetCount(handle);
+        return [item.slug, count ?? 0] as const;
+      }),
+    ).then((rows) => {
+      if (cancel) return;
+      setTotals(Object.fromEntries(rows));
+    });
+    return () => {
+      cancel = true;
+    };
+  }, []);
 
   useEffect(() => {
     if (tag === "all") return;
     const slug = fanartTags.find((item) => item.tag === tag)?.slug;
     let stop = false;
-    setPaging(true);
+    setTagPaging(true);
     void (async () => {
       let cursor: string | undefined;
       const seen = new Set<string>();
@@ -102,7 +126,7 @@ export function PostFeed() {
         seen.add(page.cursor);
         cursor = page.cursor;
       }
-      if (!stop) setPaging(false);
+      if (!stop) setTagPaging(false);
     })();
     return () => {
       stop = true;
@@ -114,7 +138,6 @@ export function PostFeed() {
     void loadPages(members, {}).then((page) => {
       if (cancel) return;
       for (const [slug, cursor] of Object.entries(page.cursors)) {
-        if (walkGen.current[slug]) continue;
         cursorRef.current[slug] = cursor;
       }
       setFresh((current) => mergePosts(page.posts, current));
@@ -127,85 +150,133 @@ export function PostFeed() {
   }, []);
 
   useEffect(() => {
-    if (member === "all") return;
-    const item = members.find((person) => person.slug === member);
-    if (!item) return;
-    const slug = item.slug;
-    const handle = item.x.split("/").filter(Boolean).pop() ?? "";
-    const gen = (walkGen.current[slug] ?? 0) + 1;
-    walkGen.current[slug] = gen;
+    if (!loaded) return;
     let stop = false;
-    setPaging(true);
-    void (async () => {
-      if (cursorRef.current[slug] === null) {
-        if (!stop) setPaging(false);
-        return;
+    const batch: Post[] = [];
+    const seenCursor: Record<string, Set<string>> = {};
+    const seenIds: Record<string, Set<string>> = {};
+    const fails: Record<string, number> = {};
+    let lastFlush = Date.now();
+    let busy = false;
+
+    function setBusy(next: boolean) {
+      if (busy === next) return;
+      busy = next;
+      setPaging(next);
+    }
+
+    function flush(force = false) {
+      if (batch.length === 0) return;
+      if (!force && batch.length < 60 && Date.now() - lastFlush < 800) return;
+      const incoming = batch.splice(0, batch.length);
+      lastFlush = Date.now();
+      setFresh((current) => mergePosts(incoming, current));
+      setCursors({ ...cursorRef.current });
+    }
+
+    async function pull(slug: string): Promise<"more" | "done" | "pause"> {
+      const item = members.find((person) => person.slug === slug);
+      const current = cursorRef.current[slug];
+      if (!item || !current) return "done";
+      seenCursor[slug] ??= new Set();
+      if (seenCursor[slug].has(current)) {
+        cursorRef.current[slug] = null;
+        return "done";
       }
-      let cursor = cursorRef.current[slug] || undefined;
-      const seen = new Set<string>();
-      const seenIds = new Set<string>();
-      let failures = 0;
-      while (!stop && walkGen.current[slug] === gen) {
-        if (cursor && seen.has(cursor)) break;
-        if (cursor) seen.add(cursor);
-        try {
-          const page = await fetchOwnPosts(handle, slug, cursor);
-          if (stop || walkGen.current[slug] !== gen) return;
-          failures = 0;
-          const novel = page.posts.filter((post) => !seenIds.has(post.id));
-          for (const post of page.posts) seenIds.add(post.id);
-          if (novel.length > 0) setFresh((current) => mergePosts(novel, current));
-          const next = page.cursor ?? null;
-          cursorRef.current[slug] = next;
-          setCursors({ ...cursorRef.current });
-          if (!next || next === cursor || (page.posts.length > 0 && novel.length === 0)) break;
-          cursor = next;
-        } catch {
-          failures += 1;
-          if (failures >= 5) break;
-          await new Promise((resolve) => setTimeout(resolve, 800));
+      seenCursor[slug].add(current);
+      const handle = item.x.split("/").filter(Boolean).pop() ?? "";
+      try {
+        const page = await fetchOwnPosts(handle, slug, current);
+        fails[slug] = 0;
+        seenIds[slug] ??= new Set();
+        const novel = page.posts.filter((post) => !seenIds[slug].has(post.id));
+        for (const post of page.posts) seenIds[slug].add(post.id);
+        if (novel.length > 0) batch.push(...novel);
+        const next = page.cursor ?? null;
+        const stuck = !next || next === current || (page.posts.length > 0 && novel.length === 0);
+        cursorRef.current[slug] = stuck ? null : next;
+        if (stop) {
+          flush(true);
+          return "pause";
         }
+        return stuck ? "done" : "more";
+      } catch {
+        fails[slug] = (fails[slug] ?? 0) + 1;
+        if (fails[slug] >= 5) return "pause";
+        await new Promise((resolve) => setTimeout(resolve, 800));
+        return "more";
       }
-      if (!stop && walkGen.current[slug] === gen) setPaging(false);
+    }
+
+    void (async () => {
+      const queue = members.map((item) => item.slug).filter((slug) => cursorRef.current[slug]);
+      setBusy(queue.length > 0);
+      while (!stop && queue.length > 0) {
+        setBusy(true);
+        const preferred = priorityRef.current;
+        if (preferred !== "all") {
+          const index = queue.indexOf(preferred);
+          if (index > 0) queue.unshift(queue.splice(index, 1)[0]);
+        }
+        const wave = queue.splice(0, 2);
+        const results = await Promise.all(wave.map(async (slug) => ({ slug, result: await pull(slug) })));
+        if (stop) {
+          flush(true);
+          return;
+        }
+        for (const { slug, result } of results) {
+          if (result === "more") queue.push(slug);
+        }
+        flush();
+      }
+      flush(true);
+      if (!stop) setBusy(false);
     })();
+
     return () => {
       stop = true;
     };
-  }, [member]);
+  }, [loaded, walkId]);
 
   const feed = useMemo(() => mergePosts(posts, fresh), [fresh]);
+  const memberScoped = useMemo(
+    () => feed.filter((post) => member === "all" || post.memberSlug === member),
+    [feed, member],
+  );
+  const kindCounts = useMemo(
+    () => ({
+      all: memberScoped.length,
+      tweets: memberScoped.filter((post) => post.platform === "x" && !post.fanart).length,
+      fanart: memberScoped.filter((post) => isFanartPost(post) && (tag === "all" || hasTag(post.title, tag))).length,
+    }),
+    [memberScoped, tag],
+  );
   const counts = useMemo(() => {
-    const scoped = feed.filter((post) => matchesScope(post, member, tag));
+    const scoped = feed.filter((post) => matchesScope(post, member, tag, kind));
     return {
       all: scoped.length,
       fanding: scoped.filter((post) => post.platform === "fanding").length,
       x: scoped.filter((post) => post.platform === "x").length,
     };
-  }, [feed, member, tag]);
+  }, [feed, member, tag, kind]);
+  const loadedTweets = memberScoped.filter((post) => post.platform === "x" && !post.fanart).length;
+  const scopeTotal = member === "all" ? members.reduce((sum, item) => sum + (totals[item.slug] ?? 0), 0) : (totals[member] ?? 0);
+  const totalsReady = member === "all" ? members.every((item) => totals[item.slug] !== undefined) : totals[member] !== undefined;
 
   const visible = feed.filter((post) => {
-    if (!matchesScope(post, member, tag)) return false;
+    if (!matchesScope(post, member, tag, kind)) return false;
     if (platform !== "all" && post.platform !== platform) return false;
     return true;
   });
 
   const historyTargets = members.filter((item) => member === "all" || item.slug === member);
-  const canLoadMore = loaded && !paging && tag === "all" && platform !== "fanding" && historyTargets.some((item) => cursors[item.slug]);
-  const historyEnded = loaded && !paging && tag === "all" && platform !== "fanding" && historyTargets.length > 0 && historyTargets.every((item) => cursors[item.slug] === null);
+  const canLoadMore = loaded && !paging && kind !== "fanart" && tag === "all" && platform !== "fanding" && historyTargets.some((item) => cursors[item.slug]);
+  const historyEnded = loaded && !paging && kind !== "fanart" && tag === "all" && platform !== "fanding" && historyTargets.length > 0 && historyTargets.every((item) => cursors[item.slug] === null);
   const rows = visible.slice(0, shown);
 
-  async function loadMore() {
-    const targets = historyTargets.filter((item) => cursorRef.current[item.slug]);
-    if (targets.length === 0 || loading) return;
-    setLoading(true);
-    const page = await loadPages(targets, cursorRef.current);
-    for (const [slug, cursor] of Object.entries(page.cursors)) {
-      if (walkGen.current[slug]) continue;
-      cursorRef.current[slug] = cursor;
-    }
-    setFresh((current) => mergePosts(page.posts, current));
-    setCursors({ ...cursorRef.current });
-    setLoading(false);
+  function loadMore() {
+    if (paging) return;
+    setWalkId((id) => id + 1);
   }
 
   return (
@@ -226,17 +297,33 @@ export function PostFeed() {
           className="relative grid size-11 shrink-0 place-items-center rounded-full border-2 border-[#8d96a8] bg-white text-ink"
         >
           <FilterIcon />
-          {platform !== "all" || member !== "all" || tag !== "all" ? (
+          {platform !== "all" || kind !== "all" || member !== "all" || tag !== "all" ? (
             <span className="absolute right-0 top-0 size-2.5 rounded-full bg-violet" />
           ) : null}
         </button>
       </div>
-      {platform !== "all" || member !== "all" || tag !== "all" ? (
+      {platform !== "all" || kind !== "all" || member !== "all" || tag !== "all" ? (
         <div className="mt-3 flex flex-wrap gap-2">
           {platform !== "all" ? <FilterChip active label={platforms.find((item) => item.id === platform)?.label ?? platform} onClick={() => setPlatform("all")} /> : null}
+          {kind !== "all" ? (
+            <FilterChip
+              active
+              label={kinds.find((item) => item.id === kind)?.label ?? kind}
+              onClick={() => {
+                setKind("all");
+                setTag("all");
+              }}
+            />
+          ) : null}
           {member !== "all" ? <FilterChip active label={members.find((item) => item.slug === member)?.name ?? member} onClick={() => setMember("all")} /> : null}
           {tag !== "all" ? <FilterChip active label={tag} onClick={() => setTag("all")} /> : null}
         </div>
+      ) : null}
+      {totalsReady && scopeTotal > 0 && kind !== "fanart" ? (
+        <p className="mt-3 text-sm leading-6 text-muted">
+          {member === "all" ? "멤버 계정" : "이 계정"}에 있는 글은 {scopeTotal.toLocaleString("ko-KR")}개입니다. 지금까지 직접 쓴 글 {loadedTweets.toLocaleString("ko-KR")}개를 불러왔습니다.
+          {paging ? " 이전 글을 이어서 가져오는 중입니다." : ""}
+        </p>
       ) : null}
 
       {filtersOpen ? (
@@ -264,6 +351,26 @@ export function PostFeed() {
                 />
               ))}
             </div>
+            <p className="mt-5 text-sm text-muted">종류</p>
+            <div className="mt-3 flex flex-wrap gap-2">
+              {kinds.map((item) => (
+                <FilterChip
+                  key={item.id}
+                  active={kind === item.id}
+                  label={`${item.label} (${kindCounts[item.id]})`}
+                  onClick={() => {
+                    setKind(item.id);
+                    setTag("all");
+                    if (item.id !== "all") setPlatform("all");
+                  }}
+                />
+              ))}
+            </div>
+            {totalsReady && scopeTotal > 0 && kind !== "fanart" ? (
+              <p className="mt-3 text-sm leading-6 text-muted">
+                {member === "all" ? "멤버 계정" : "이 계정"}에 있는 글은 {scopeTotal.toLocaleString("ko-KR")}개입니다. 화면의 숫자는 지금까지 불러온 직접 쓴 글입니다.
+              </p>
+            ) : null}
             <p className="mt-5 text-sm text-muted">멤버</p>
             <div className="mt-3 flex flex-wrap gap-2">
               <FilterChip active={member === "all"} label="전체" onClick={() => setMember("all")} />
@@ -281,7 +388,15 @@ export function PostFeed() {
             </div>
             <p className="mt-5 text-sm text-muted">팬아트</p>
             <div className="mt-3 flex flex-wrap gap-2">
-              <FilterChip active={tag === "all"} label="전체" onClick={() => setTag("all")} />
+              <FilterChip
+                active={kind === "fanart" && tag === "all"}
+                label="전체"
+                onClick={() => {
+                  setKind("fanart");
+                  setTag("all");
+                  setPlatform("all");
+                }}
+              />
               {fanartTags.map((item) => (
                 <FilterChip
                   key={item.tag}
@@ -289,7 +404,9 @@ export function PostFeed() {
                   label={`${shortName(members.find((person) => person.slug === item.slug)?.name ?? item.slug)} ${item.tag}`}
                   onClick={() => {
                     setTag(item.tag);
+                    setKind("fanart");
                     setMember("all");
+                    setPlatform("all");
                   }}
                 />
               ))}
@@ -301,9 +418,9 @@ export function PostFeed() {
       {rows.length === 0 ? (
         <div className="py-16 text-center">
           <p className="text-sm text-[#b0b4be]">
-            {paging ? "글을 가져오는 중" : tag === "all" ? "게시물이 없습니다" : `가져온 글에는 ${tag} 가 없습니다`}
+            {paging || tagPaging ? "글을 가져오는 중" : kind === "fanart" ? "팬아트가 없습니다" : "게시물이 없습니다"}
           </p>
-          {tag !== "all" && !paging ? (
+          {tag !== "all" && !tagPaging ? (
             <ExternalLink
               href={`https://x.com/search?q=${encodeURIComponent(tag)}&src=typed_query&f=live`}
               className="mt-4 inline-block text-sm font-medium text-violet"
@@ -326,17 +443,16 @@ export function PostFeed() {
       )}
       {shown < visible.length ? <LoadTail onReach={() => setShown((count) => count + 40)} /> : null}
 
-      {paging && rows.length > 0 ? (
-        <p className="mt-4 text-center text-sm text-muted">이전 글을 가져오는 중 · {visible.length}개</p>
+      {paging && rows.length > 0 && kind !== "fanart" ? (
+        <p className="mt-4 text-center text-sm text-muted">이전 글을 가져오는 중 · {loadedTweets.toLocaleString("ko-KR")}개</p>
       ) : null}
       {canLoadMore ? (
         <button
           type="button"
-          onClick={() => void loadMore()}
-          disabled={loading}
-          className="mt-4 w-full py-3 text-[15px] font-medium text-violet disabled:text-muted"
+          onClick={loadMore}
+          className="mt-4 w-full py-3 text-[15px] font-medium text-violet"
         >
-          {loading ? "불러오는 중" : "이전 게시물 더 보기"}
+          이전 게시물 더 보기
         </button>
       ) : null}
       {historyEnded ? <p className="mt-4 text-center text-sm text-muted">마지막 게시물입니다</p> : null}
@@ -480,9 +596,16 @@ async function loadPages(targets: { slug: string; x: string }[], cursors: Record
   return { posts, cursors: next };
 }
 
-function matchesScope(post: Post, member: string, tag: string) {
+function matchesScope(post: Post, member: string, tag: string, kind: KindFilter) {
+  if (member !== "all" && post.memberSlug !== member) return false;
   if (tag !== "all") return hasTag(post.title, tag);
-  return member === "all" || post.memberSlug === member;
+  if (kind === "fanart") return isFanartPost(post);
+  if (kind === "tweets") return post.platform === "x" && !post.fanart;
+  return true;
+}
+
+function isFanartPost(post: Post) {
+  return Boolean(post.fanart) || fanartTags.some((item) => hasTag(post.title, item.tag));
 }
 
 function hasTag(title: string, tag: string) {
