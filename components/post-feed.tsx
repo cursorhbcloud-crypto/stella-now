@@ -16,6 +16,9 @@ const platforms = [
 ] as const;
 
 type PlatformFilter = (typeof platforms)[number]["id"];
+type Mark = { like: boolean; repost: boolean };
+
+const REACTIONS = "stella-now-reactions";
 
 export function PostFeed() {
   const { slug: oshi } = useOshi();
@@ -28,6 +31,7 @@ export function PostFeed() {
   const [loading, setLoading] = useState(false);
   const [viewer, setViewer] = useState<MediaFile | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [marks, setMarks] = useState<Record<string, Mark>>({});
 
   async function save(file: MediaFile) {
     try {
@@ -41,10 +45,30 @@ export function PostFeed() {
   }
 
   useEffect(() => {
+    const slug = new URLSearchParams(window.location.search).get("member");
+    if (!slug || !members.some((item) => item.slug === slug)) return;
+    appliedOshi.current = true;
+    setMember(slug);
+  }, []);
+
+  useEffect(() => {
     if (appliedOshi.current || !oshi) return;
     appliedOshi.current = true;
     setMember(oshi);
   }, [oshi]);
+
+  useEffect(() => {
+    setMarks(readMarks());
+  }, []);
+
+  function toggleMark(id: string, kind: keyof Mark) {
+    setMarks((current) => {
+      const prev = current[id] ?? { like: false, repost: false };
+      const next = { ...current, [id]: { ...prev, [kind]: !prev[kind] } };
+      window.localStorage.setItem(REACTIONS, JSON.stringify(next));
+      return next;
+    });
+  }
 
   useEffect(() => {
     let cancel = false;
@@ -90,7 +114,7 @@ export function PostFeed() {
   }
 
   return (
-    <div>
+    <div className="min-w-0 max-w-full overflow-x-hidden">
       <div className="flex items-start justify-between">
         <h1 className="text-[32px] font-bold tracking-tight">게시물</h1>
         <Link href="/settings" aria-label="설정" className="grid size-10 place-items-center text-ink md:hidden">
@@ -100,7 +124,7 @@ export function PostFeed() {
       <p className="mt-1 text-[15px] text-muted">스텔라이브 최신 소식</p>
 
       <p className="mt-6 text-sm text-muted">플랫폼</p>
-      <div className="mt-3 flex gap-2">
+      <div className="mt-3 flex flex-wrap gap-2">
         {platforms.map((item) => (
           <FilterChip
             key={item.id}
@@ -112,7 +136,7 @@ export function PostFeed() {
       </div>
 
       <p className="mt-5 text-sm text-muted">멤버</p>
-      <div className="mt-3 flex gap-2 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] md:flex-wrap [&::-webkit-scrollbar]:hidden">
+      <div className="mt-3 flex flex-wrap gap-2">
         <FilterChip active={member === "all"} label="전체" onClick={() => setMember("all")} />
         {members.map((item) => (
           <FilterChip
@@ -131,7 +155,14 @@ export function PostFeed() {
       ) : (
         <ul className="mt-6 divide-y divide-line border-t border-line">
           {visible.map((post) => (
-            <PostRow key={post.id} post={post} onOpen={setViewer} onSave={(file) => void save(file)} />
+            <PostRow
+              key={post.id}
+              post={post}
+              mark={marks[post.id]}
+              onToggle={toggleMark}
+              onOpen={setViewer}
+              onSave={(file) => void save(file)}
+            />
           ))}
         </ul>
       )}
@@ -178,10 +209,14 @@ export function PostFeed() {
 
 function PostRow({
   post,
+  mark,
+  onToggle,
   onOpen,
   onSave,
 }: {
   post: Post;
+  mark?: Mark;
+  onToggle: (id: string, kind: keyof Mark) => void;
   onOpen: (file: MediaFile) => void;
   onSave: (file: MediaFile) => void;
 }) {
@@ -198,15 +233,15 @@ function PostRow({
               <span className="font-medium">{name ?? platformLabel(post.platform)}</span>
               <span className="text-muted"> · {post.date}</span>
             </span>
-            {post.replyTo ? <span className="mt-1 block text-sm text-muted">@{post.replyTo}에게 답글</span> : null}
-            <span className="mt-1 block text-[15px] leading-6">{post.title}</span>
+            {post.replyTo ? <span className="mt-1 block break-words text-sm text-muted">@{post.replyTo}에게 답글</span> : null}
+            <span className="mt-1 block break-words text-[15px] leading-6">{post.title}</span>
           </a>
           {pictures.length > 0 ? (
             <div className={`mt-2 grid gap-1 ${pictures.length > 1 ? "grid-cols-2" : "grid-cols-1"}`}>
               {pictures.map((picture) => (
                 <div key={picture.src} className="relative overflow-hidden rounded-xl">
                   <button type="button" onClick={() => onOpen(picture)} className="block w-full">
-                    <img src={previewSrc(picture.src)} alt="" className="block h-auto w-full" />
+                    <img src={previewSrc(picture.src)} alt="" className="block h-auto w-full max-w-full" />
                   </button>
                   {picture.video ? (
                     <span className="pointer-events-none absolute bottom-2 left-2 rounded-full bg-black/70 px-2 py-0.5 text-xs text-white">
@@ -225,23 +260,9 @@ function PostRow({
             </div>
           ) : null}
           {post.platform === "x" && /^\d+$/.test(post.id) ? (
-            <div className="mt-3 flex gap-2">
-              <a
-                href={`https://x.com/intent/retweet?tweet_id=${post.id}`}
-                target="_blank"
-                rel="noreferrer"
-                className="rounded-full bg-[#f2f3f7] px-3 py-1.5 text-sm font-medium"
-              >
-                리트윗
-              </a>
-              <a
-                href={`https://x.com/intent/like?tweet_id=${post.id}`}
-                target="_blank"
-                rel="noreferrer"
-                className="rounded-full bg-[#f2f3f7] px-3 py-1.5 text-sm font-medium"
-              >
-                하트
-              </a>
+            <div className="mt-3 flex flex-wrap gap-2">
+              <MarkButton pressed={mark?.repost === true} label="리트윗" onClick={() => onToggle(post.id, "repost")} />
+              <MarkButton pressed={mark?.like === true} label="하트" heart onClick={() => onToggle(post.id, "like")} />
             </div>
           ) : null}
         </div>
@@ -326,6 +347,62 @@ function FilterChip({
       {label}
     </button>
   );
+}
+
+function MarkButton({
+  pressed,
+  label,
+  heart = false,
+  onClick,
+}: {
+  pressed: boolean;
+  label: string;
+  heart?: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      aria-pressed={pressed}
+      onClick={onClick}
+      className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-medium ${
+        pressed ? (heart ? "bg-[#ffecec] text-[#ef3b3b]" : "bg-[#f3f0ff] text-violet") : "bg-[#f2f3f7] text-ink"
+      }`}
+    >
+      {heart ? <HeartIcon filled={pressed} /> : <RepostIcon active={pressed} />}
+      {label}
+    </button>
+  );
+}
+
+function HeartIcon({ filled }: { filled: boolean }) {
+  return (
+    <svg viewBox="0 0 24 24" className="size-4" fill={filled ? "currentColor" : "none"} stroke="currentColor" strokeWidth="1.8" aria-hidden>
+      <path d="M12 19.4 4.8 12.5a4.2 4.2 0 0 1 6-5.9L12 7.7l1.2-1.1a4.2 4.2 0 0 1 6 5.9z" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function RepostIcon({ active }: { active: boolean }) {
+  return (
+    <svg viewBox="0 0 24 24" className="size-4" fill="none" stroke="currentColor" strokeWidth={active ? 2.2 : 1.8} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="M17 4h3v3" />
+      <path d="M20 7A8 8 0 0 0 6.2 6.2" />
+      <path d="M7 20H4v-3" />
+      <path d="M4 17a8 8 0 0 0 13.8 1.8" />
+    </svg>
+  );
+}
+
+function readMarks() {
+  try {
+    const raw = JSON.parse(window.localStorage.getItem(REACTIONS) || "{}") as Record<string, Partial<Mark>>;
+    return Object.fromEntries(
+      Object.entries(raw).map(([id, mark]) => [id, { like: mark.like === true, repost: mark.repost === true }]),
+    );
+  } catch {
+    return {};
+  }
 }
 
 function platformLabel(platform: PostPlatform) {
