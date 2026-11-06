@@ -56,13 +56,13 @@
   },
   "rang": {
     "live": true,
-    "viewers": 9897,
+    "viewers": 7252,
     "openDate": "2026-11-06 16:30:30"
   },
   "hiyori": {
-    "live": true,
-    "viewers": 12756,
-    "openDate": "2026-11-06 23:00:54"
+    "live": false,
+    "viewers": 0,
+    "openDate": null
   },
   "mary": {
     "live": false,
