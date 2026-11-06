@@ -16,7 +16,7 @@ const platforms = [
   { id: "x", label: "X" },
 ] as const;
 
-type PlatformFilter = (typeof platforms)[number]["id"] | "none";
+type PlatformFilter = (typeof platforms)[number]["id"];
 
 export function PostFeed() {
   const { slug: oshi } = useOshi();
@@ -244,13 +244,13 @@ export function PostFeed() {
   const totalsReady = member === "all" || member === "none" ? members.every((item) => totals[item.slug] !== undefined) : totals[member] !== undefined;
 
   const visible = feed.filter((post) => {
-    if (platform === "none" || !matchesScope(post, member, tag)) return false;
+    if (!matchesScope(post, member, tag)) return false;
     if (platform !== "all" && post.platform !== platform) return false;
     return true;
   });
 
   const historyTargets = members.filter((item) => member === "all" || item.slug === member);
-  const showTweetHistory = member !== "none" && (tag === "all" || tag === "none") && platform !== "fanding" && platform !== "none";
+  const showTweetHistory = member !== "none" && (tag === "all" || tag === "none") && platform !== "fanding";
   const canLoadMore = loaded && !paging && showTweetHistory && historyTargets.some((item) => cursors[item.slug]);
   const historyEnded = loaded && !paging && showTweetHistory && historyTargets.length > 0 && historyTargets.every((item) => cursors[item.slug] === null);
   const rows = visible.slice(0, shown);
@@ -278,16 +278,16 @@ export function PostFeed() {
           className="relative grid size-11 shrink-0 place-items-center rounded-full border-2 border-[#8d96a8] bg-white text-ink"
         >
           <FilterIcon />
-          {platform !== "all" || member !== "all" || tag !== "all" ? (
+          {platform !== "all" || (member !== "all" && member !== "none") || (tag !== "all" && tag !== "none") ? (
             <span className="absolute right-0 top-0 size-2.5 rounded-full bg-violet" />
           ) : null}
         </button>
       </div>
-      {platform !== "all" || member !== "all" || tag !== "all" ? (
+      {platform !== "all" || (member !== "all" && member !== "none") || (tag !== "all" && tag !== "none") ? (
         <div className="mt-3 flex flex-wrap gap-2">
-          {platform !== "all" ? <FilterChip active label={platform === "none" ? "플랫폼 해제" : (platforms.find((item) => item.id === platform)?.label ?? platform)} onClick={() => setPlatform("all")} /> : null}
-          {member !== "all" ? <FilterChip active label={member === "none" ? "멤버 해제" : (members.find((item) => item.slug === member)?.name ?? member)} onClick={() => setMember("all")} /> : null}
-          {tag !== "all" ? <FilterChip active label={tag === "none" ? "팬아트 해제" : tag} onClick={() => setTag("all")} /> : null}
+          {platform !== "all" ? <FilterChip active label={platforms.find((item) => item.id === platform)?.label ?? platform} onClick={() => setPlatform("all")} /> : null}
+          {member !== "all" && member !== "none" ? <FilterChip active label={members.find((item) => item.slug === member)?.name ?? member} onClick={() => setMember("all")} /> : null}
+          {tag !== "all" && tag !== "none" ? <FilterChip active label={tag} onClick={() => setTag("all")} /> : null}
         </div>
       ) : null}
       {totalsReady && scopeTotal > 0 && member !== "none" ? (
@@ -318,7 +318,7 @@ export function PostFeed() {
                   key={item.id}
                   active={platform === item.id}
                   label={`${item.label} (${counts[item.id]})`}
-                  onClick={() => setPlatform(platform === item.id ? "none" : item.id)}
+                  onClick={() => setPlatform(item.id)}
                 />
               ))}
             </div>
@@ -358,7 +358,7 @@ export function PostFeed() {
       {rows.length === 0 ? (
         <div className="py-16 text-center">
           <p className="text-sm text-[#b0b4be]">
-            {(tagPaging || (paging && member !== "none")) && platform !== "none" ? "글을 가져오는 중" : "게시물이 없습니다"}
+            {tagPaging || (paging && member !== "none") ? "글을 가져오는 중" : "게시물이 없습니다"}
           </p>
           {tag !== "all" && tag !== "none" && !tagPaging ? (
             <ExternalLink
