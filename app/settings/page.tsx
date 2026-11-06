@@ -74,16 +74,16 @@ export default function SettingsPage() {
       </section>
 
       <section className="mt-8">
-        <h2 className="text-lg font-bold">로그인</h2>
+        <h2 className="text-lg font-bold">계정 연결</h2>
         <p className="mt-1 text-sm leading-6 text-muted">
-          로그인 창만 따로 열리고 이 화면은 그대로입니다. 비밀번호는 저장하지 않습니다.
+          연결하면 그 계정 창만 따로 열리고 이 화면은 그대로입니다. 비밀번호는 저장하지 않습니다.
         </p>
         <ul className="mt-3 divide-y divide-line overflow-hidden rounded-xl border border-line">
           {accounts.map((account) => (
             <li key={account.name} className="flex items-center justify-between gap-3 px-4 py-3.5">
               <span className="font-medium">{account.name}</span>
               <ExternalLink href={account.href} className="text-sm font-medium text-violet">
-                로그인
+                연결
               </ExternalLink>
             </li>
           ))}
