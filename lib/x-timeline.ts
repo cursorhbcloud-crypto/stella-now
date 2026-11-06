@@ -17,8 +17,10 @@ type Tweet = {
 export async function fetchTaggedPosts(tag: string, slug?: string) {
   const url = new URL("https://api.fxtwitter.com/2/search");
   url.searchParams.set("q", tag);
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 4000);
   try {
-    const response = await fetch(url);
+    const response = await fetch(url, { signal: controller.signal });
     if (!response.ok) return [];
     const data = (await response.json()) as { results?: Tweet[] };
     return (data.results ?? []).flatMap((tweet) => {
@@ -27,6 +29,8 @@ export async function fetchTaggedPosts(tag: string, slug?: string) {
     });
   } catch {
     return [];
+  } finally {
+    clearTimeout(timer);
   }
 }
 

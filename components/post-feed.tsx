@@ -6,6 +6,7 @@ import { useOshi } from "@/components/oshi";
 import { ProfileAvatar } from "@/components/profile-avatar";
 import { fanartTags, members, shortName } from "@/content/members";
 import { posts, type Post, type PostPlatform } from "@/content/posts";
+import { ExternalLink } from "@/components/external-link";
 import { saveRemoteFile } from "@/lib/save-file";
 import { fetchOwnPosts, fetchTaggedPosts } from "@/lib/x-timeline";
 
@@ -16,9 +17,6 @@ const platforms = [
 ] as const;
 
 type PlatformFilter = (typeof platforms)[number]["id"];
-type Mark = { like: boolean; repost: boolean };
-
-const REACTIONS = "stella-now-reactions";
 
 export function PostFeed() {
   const { slug: oshi } = useOshi();
@@ -32,7 +30,6 @@ export function PostFeed() {
   const [loading, setLoading] = useState(false);
   const [viewer, setViewer] = useState<MediaFile | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
-  const [marks, setMarks] = useState<Record<string, Mark>>({});
   const [filtersOpen, setFiltersOpen] = useState(false);
 
   async function save(file: MediaFile) {
@@ -60,10 +57,6 @@ export function PostFeed() {
   }, [oshi]);
 
   useEffect(() => {
-    setMarks(readMarks());
-  }, []);
-
-  useEffect(() => {
     if (!filtersOpen) return;
     function onKey(event: KeyboardEvent) {
       if (event.key === "Escape") setFiltersOpen(false);
@@ -83,15 +76,6 @@ export function PostFeed() {
       stop = true;
     };
   }, [tag]);
-
-  function toggleMark(id: string, kind: keyof Mark) {
-    setMarks((current) => {
-      const prev = current[id] ?? { like: false, repost: false };
-      const next = { ...current, [id]: { ...prev, [kind]: !prev[kind] } };
-      window.localStorage.setItem(REACTIONS, JSON.stringify(next));
-      return next;
-    });
-  }
 
   useEffect(() => {
     let cancel = false;
@@ -229,6 +213,14 @@ export function PostFeed() {
       {visible.length === 0 ? (
         <div className="py-16 text-center">
           <p className="text-sm text-[#b0b4be]">{tag === "all" ? "게시물이 없습니다" : `가져온 글에는 ${tag} 가 없습니다`}</p>
+          {tag !== "all" ? (
+            <ExternalLink
+              href={`https://x.com/search?q=${encodeURIComponent(tag)}&src=typed_query&f=live`}
+              className="mt-4 inline-block text-sm font-medium text-violet"
+            >
+              X에서 {tag} 보기
+            </ExternalLink>
+          ) : null}
         </div>
       ) : (
         <ul className="mt-6 divide-y divide-line border-t border-line">
@@ -236,8 +228,6 @@ export function PostFeed() {
             <PostRow
               key={post.id}
               post={post}
-              mark={marks[post.id]}
-              onToggle={toggleMark}
               onOpen={setViewer}
               onSave={(file) => void save(file)}
             />
@@ -287,14 +277,10 @@ export function PostFeed() {
 
 function PostRow({
   post,
-  mark,
-  onToggle,
   onOpen,
   onSave,
 }: {
   post: Post;
-  mark?: Mark;
-  onToggle: (id: string, kind: keyof Mark) => void;
   onOpen: (file: MediaFile) => void;
   onSave: (file: MediaFile) => void;
 }) {
@@ -339,8 +325,14 @@ function PostRow({
           ) : null}
           {post.platform === "x" && /^\d+$/.test(post.id) ? (
             <div className="mt-3 flex flex-wrap gap-2">
-              <MarkButton pressed={mark?.repost === true} label="리트윗" onClick={() => onToggle(post.id, "repost")} />
-              <MarkButton pressed={mark?.like === true} label="하트" heart onClick={() => onToggle(post.id, "like")} />
+              <ExternalLink href={`https://x.com/intent/retweet?tweet_id=${post.id}`} className="inline-flex items-center gap-1.5 rounded-full bg-[#f2f3f7] px-3 py-1.5 text-sm font-medium text-ink">
+                <RepostIcon />
+                리트윗
+              </ExternalLink>
+              <ExternalLink href={`https://x.com/intent/like?tweet_id=${post.id}`} className="inline-flex items-center gap-1.5 rounded-full bg-[#f2f3f7] px-3 py-1.5 text-sm font-medium text-ink">
+                <HeartIcon />
+                하트
+              </ExternalLink>
             </div>
           ) : null}
         </div>
@@ -437,60 +429,23 @@ function FilterChip({
   );
 }
 
-function MarkButton({
-  pressed,
-  label,
-  heart = false,
-  onClick,
-}: {
-  pressed: boolean;
-  label: string;
-  heart?: boolean;
-  onClick: () => void;
-}) {
+function HeartIcon() {
   return (
-    <button
-      type="button"
-      aria-pressed={pressed}
-      onClick={onClick}
-      className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-medium ${
-        pressed ? (heart ? "bg-[#ffecec] text-[#ef3b3b]" : "bg-[#f3f0ff] text-violet") : "bg-[#f2f3f7] text-ink"
-      }`}
-    >
-      {heart ? <HeartIcon filled={pressed} /> : <RepostIcon active={pressed} />}
-      {label}
-    </button>
-  );
-}
-
-function HeartIcon({ filled }: { filled: boolean }) {
-  return (
-    <svg viewBox="0 0 24 24" className="size-4" fill={filled ? "currentColor" : "none"} stroke="currentColor" strokeWidth="1.8" aria-hidden>
+    <svg viewBox="0 0 24 24" className="size-4" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden>
       <path d="M12 19.4 4.8 12.5a4.2 4.2 0 0 1 6-5.9L12 7.7l1.2-1.1a4.2 4.2 0 0 1 6 5.9z" strokeLinejoin="round" />
     </svg>
   );
 }
 
-function RepostIcon({ active }: { active: boolean }) {
+function RepostIcon() {
   return (
-    <svg viewBox="0 0 24 24" className="size-4" fill="none" stroke="currentColor" strokeWidth={active ? 2.2 : 1.8} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+    <svg viewBox="0 0 24 24" className="size-4" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
       <path d="M17 4h3v3" />
       <path d="M20 7A8 8 0 0 0 6.2 6.2" />
       <path d="M7 20H4v-3" />
       <path d="M4 17a8 8 0 0 0 13.8 1.8" />
     </svg>
   );
-}
-
-function readMarks() {
-  try {
-    const raw = JSON.parse(window.localStorage.getItem(REACTIONS) || "{}") as Record<string, Partial<Mark>>;
-    return Object.fromEntries(
-      Object.entries(raw).map(([id, mark]) => [id, { like: mark.like === true, repost: mark.repost === true }]),
-    );
-  } catch {
-    return {};
-  }
 }
 
 function platformLabel(platform: PostPlatform) {

@@ -1,13 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useRef, useState } from "react";
+import { ExternalLink } from "@/components/external-link";
 import { useOshi } from "@/components/oshi";
 import { ProfileAvatar } from "@/components/profile-avatar";
 import { members, shortName } from "@/content/members";
-
-const ACCOUNT_KEY = "stella-now-accounts";
-const ACCOUNT_VERSION = "stella-now-accounts-v2";
 
 const accounts = [
   { name: "X", href: "https://x.com/i/flow/login" },
@@ -24,8 +21,6 @@ const shortcuts = [
 export default function SettingsPage() {
   const { slug, choose, clear } = useOshi();
   const oshi = members.find((member) => member.slug === slug);
-  const { signedIn, asking, signIn, confirm, cancel, signOut } = useAccounts();
-
   return (
     <div>
       <h1 className="text-[32px] font-bold tracking-tight">설정</h1>
@@ -81,40 +76,17 @@ export default function SettingsPage() {
       <section className="mt-8">
         <h2 className="text-lg font-bold">로그인</h2>
         <p className="mt-1 text-sm leading-6 text-muted">
-          로그인 화면에서 로그인한 뒤 돌아오면 로그인했는지 확인합니다. 비밀번호는 저장하지 않습니다.
+          로그인 창만 따로 열리고 이 화면은 그대로입니다. 비밀번호는 저장하지 않습니다.
         </p>
         <ul className="mt-3 divide-y divide-line overflow-hidden rounded-xl border border-line">
-          {accounts.map((account) => {
-            const on = signedIn[account.name] === true;
-            const waiting = asking === account.name;
-            return (
-              <li key={account.name} className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2 px-4 py-3.5">
-                <span className="font-medium">{account.name}</span>
-                {on ? (
-                  <span className="flex items-center gap-3">
-                    <span className="text-sm font-medium text-violet">로그인됨</span>
-                    <button type="button" onClick={() => signOut(account.name)} className="text-sm text-muted">
-                      로그아웃
-                    </button>
-                  </span>
-                ) : waiting ? (
-                  <span className="flex items-center gap-3">
-                    <span className="text-sm text-muted">로그인했나요?</span>
-                    <button type="button" onClick={() => confirm(account.name)} className="text-sm font-medium text-violet">
-                      했어요
-                    </button>
-                    <button type="button" onClick={cancel} className="text-sm text-muted">
-                      안 했어요
-                    </button>
-                  </span>
-                ) : (
-                  <button type="button" onClick={() => signIn(account)} className="text-sm font-medium text-violet">
-                    로그인
-                  </button>
-                )}
-              </li>
-            );
-          })}
+          {accounts.map((account) => (
+            <li key={account.name} className="flex items-center justify-between gap-3 px-4 py-3.5">
+              <span className="font-medium">{account.name}</span>
+              <ExternalLink href={account.href} className="text-sm font-medium text-violet">
+                로그인
+              </ExternalLink>
+            </li>
+          ))}
         </ul>
       </section>
       <p className="mt-8 text-sm leading-6 text-muted">
@@ -123,88 +95,4 @@ export default function SettingsPage() {
       </p>
     </div>
   );
-}
-
-function useAccounts() {
-  const [signedIn, setSignedIn] = useState<Record<string, boolean>>({});
-  const [asking, setAsking] = useState<string | null>(null);
-  const pending = useRef<string | null>(null);
-  const openedAt = useRef(0);
-  const left = useRef(false);
-
-  useEffect(() => {
-    setSignedIn(readAccounts());
-    function returned() {
-      if (!left.current || !pending.current) return;
-      if (Date.now() - openedAt.current < 1200) {
-        left.current = false;
-        return;
-      }
-      left.current = false;
-      const name = pending.current;
-      pending.current = null;
-      setAsking(name);
-    }
-    function onVisibility() {
-      if (document.visibilityState === "hidden") left.current = true;
-      if (document.visibilityState === "visible") returned();
-    }
-    function onBlur() {
-      if (pending.current) left.current = true;
-    }
-    document.addEventListener("visibilitychange", onVisibility);
-    window.addEventListener("blur", onBlur);
-    window.addEventListener("focus", returned);
-    return () => {
-      document.removeEventListener("visibilitychange", onVisibility);
-      window.removeEventListener("blur", onBlur);
-      window.removeEventListener("focus", returned);
-    };
-  }, []);
-
-  function signIn(account: (typeof accounts)[number]) {
-    pending.current = account.name;
-    openedAt.current = Date.now();
-    setAsking(null);
-    window.open(account.href, "_blank", "noopener");
-  }
-
-  function confirm(name: string) {
-    setAsking(null);
-    setSignedIn((current) => {
-      const next = { ...current, [name]: true };
-      window.localStorage.setItem(ACCOUNT_KEY, JSON.stringify(next));
-      window.localStorage.setItem(ACCOUNT_VERSION, "1");
-      return next;
-    });
-  }
-
-  function cancel() {
-    pending.current = null;
-    setAsking(null);
-  }
-
-  function signOut(name: string) {
-    setSignedIn((current) => {
-      const next = { ...current, [name]: false };
-      window.localStorage.setItem(ACCOUNT_KEY, JSON.stringify(next));
-      return next;
-    });
-  }
-
-  return { signedIn, asking, signIn, confirm, cancel, signOut };
-}
-
-function readAccounts() {
-  try {
-    if (window.localStorage.getItem(ACCOUNT_VERSION) !== "1") {
-      window.localStorage.removeItem(ACCOUNT_KEY);
-      window.localStorage.setItem(ACCOUNT_VERSION, "1");
-      return {};
-    }
-    const raw = JSON.parse(window.localStorage.getItem(ACCOUNT_KEY) || "{}") as Record<string, unknown>;
-    return Object.fromEntries(Object.entries(raw).map(([name, value]) => [name, value === true]));
-  } catch {
-    return {};
-  }
 }
