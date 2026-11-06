@@ -171,6 +171,23 @@ export function unitNameEn(id: UnitId) {
   return units.find((unit) => unit.id === id)?.en ?? id;
 }
 
+export const fanartTags = [
+  { slug: "yuni", tag: "#yunyart" },
+  { slug: "huya", tag: "#huyart" },
+  { slug: "hina", tag: "#_hinart" },
+  { slug: "mashiro", tag: "#shiroart" },
+  { slug: "lize", tag: "#Lize_art" },
+  { slug: "tabi", tag: "#Tabiart" },
+  { slug: "shibuki", tag: "#shibuki_art" },
+  { slug: "rin", tag: "#kumorinart" },
+  { slug: "nana", tag: "#Nanart_" },
+  { slug: "riko", tag: "#riko_art" },
+  { slug: "toa", tag: "#toart_" },
+  { slug: "rang", tag: "#Rangart_" },
+  { slug: "hiyori", tag: "#hiyoriart_" },
+  { slug: "mary", tag: "#maryart_" },
+] as const;
+
 export function shortName(name: string) {
   const parts = name.split(" ");
   return parts[parts.length - 1] ?? name;

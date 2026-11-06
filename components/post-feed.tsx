@@ -4,10 +4,10 @@ import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useOshi } from "@/components/oshi";
 import { ProfileAvatar } from "@/components/profile-avatar";
-import { members } from "@/content/members";
+import { fanartTags, members, shortName } from "@/content/members";
 import { posts, type Post, type PostPlatform } from "@/content/posts";
 import { saveRemoteFile } from "@/lib/save-file";
-import { fetchOwnPosts } from "@/lib/x-timeline";
+import { fetchOwnPosts, fetchTaggedPosts } from "@/lib/x-timeline";
 
 const platforms = [
   { id: "all", label: "전체" },
@@ -25,6 +25,7 @@ export function PostFeed() {
   const appliedOshi = useRef(false);
   const [platform, setPlatform] = useState<PlatformFilter>("all");
   const [member, setMember] = useState("all");
+  const [tag, setTag] = useState("all");
   const [fresh, setFresh] = useState<Post[]>([]);
   const [cursors, setCursors] = useState<Record<string, string | null>>({});
   const [loaded, setLoaded] = useState(false);
@@ -61,6 +62,18 @@ export function PostFeed() {
     setMarks(readMarks());
   }, []);
 
+  useEffect(() => {
+    if (tag === "all") return;
+    const slug = fanartTags.find((item) => item.tag === tag)?.slug;
+    let stop = false;
+    void fetchTaggedPosts(tag, slug).then((found) => {
+      if (!stop && found.length > 0) setFresh((current) => [...current, ...found]);
+    });
+    return () => {
+      stop = true;
+    };
+  }, [tag]);
+
   function toggleMark(id: string, kind: keyof Mark) {
     setMarks((current) => {
       const prev = current[id] ?? { like: false, repost: false };
@@ -74,7 +87,7 @@ export function PostFeed() {
     let cancel = false;
     void loadPages(members, {}).then((page) => {
       if (cancel) return;
-      setFresh(page.posts);
+      setFresh((current) => mergePosts(page.posts, current));
       setCursors(page.cursors);
       setLoaded(true);
     });
@@ -85,16 +98,16 @@ export function PostFeed() {
 
   const feed = useMemo(() => mergePosts(posts, fresh), [fresh]);
   const counts = useMemo(() => {
-    const scoped = feed.filter((post) => member === "all" || post.memberSlug === member);
+    const scoped = feed.filter((post) => matchesScope(post, member, tag));
     return {
       all: scoped.length,
       fanding: scoped.filter((post) => post.platform === "fanding").length,
       x: scoped.filter((post) => post.platform === "x").length,
     };
-  }, [feed, member]);
+  }, [feed, member, tag]);
 
   const visible = feed.filter((post) => {
-    if (member !== "all" && post.memberSlug !== member) return false;
+    if (!matchesScope(post, member, tag)) return false;
     if (platform !== "all" && post.platform !== platform) return false;
     return true;
   });
@@ -143,14 +156,33 @@ export function PostFeed() {
             key={item.slug}
             active={member === item.slug}
             label={item.name}
-            onClick={() => setMember(item.slug)}
+            onClick={() => {
+              setMember(item.slug);
+              setTag("all");
+            }}
+          />
+        ))}
+      </div>
+
+      <p className="mt-5 text-sm text-muted">팬아트</p>
+      <div className="mt-3 flex flex-wrap gap-2">
+        <FilterChip active={tag === "all"} label="전체" onClick={() => setTag("all")} />
+        {fanartTags.map((item) => (
+          <FilterChip
+            key={item.tag}
+            active={tag === item.tag}
+            label={`${shortName(members.find((member) => member.slug === item.slug)?.name ?? item.slug)} ${item.tag}`}
+            onClick={() => {
+              setTag(item.tag);
+              setMember("all");
+            }}
           />
         ))}
       </div>
 
       {visible.length === 0 ? (
         <div className="py-16 text-center">
-          <p className="text-sm text-[#b0b4be]">게시물이 없습니다</p>
+          <p className="text-sm text-[#b0b4be]">{tag === "all" ? "게시물이 없습니다" : `가져온 글에는 ${tag} 가 없습니다`}</p>
         </div>
       ) : (
         <ul className="mt-6 divide-y divide-line border-t border-line">
@@ -314,6 +346,16 @@ async function loadPages(targets: { slug: string; x: string }[], cursors: Record
     }),
   );
   return { posts, cursors: next };
+}
+
+function matchesScope(post: Post, member: string, tag: string) {
+  if (tag !== "all") return hasTag(post.title, tag);
+  return member === "all" || post.memberSlug === member;
+}
+
+function hasTag(title: string, tag: string) {
+  const escaped = tag.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return new RegExp(`(?:^|[^\\w가-힣])${escaped}(?![\\w가-힣])`, "i").test(title);
 }
 
 function mergePosts(saved: Post[], incoming: Post[]) {
