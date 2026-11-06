@@ -14,21 +14,26 @@ type Tweet = {
   };
 };
 
-export async function fetchTaggedPosts(tag: string, slug?: string) {
+export async function fetchTaggedPosts(tag: string, slug?: string, cursor?: string) {
   const url = new URL("https://api.fxtwitter.com/2/search");
   url.searchParams.set("q", tag);
+  url.searchParams.set("feed", "latest");
+  url.searchParams.set("count", "100");
+  if (cursor) url.searchParams.set("cursor", cursor);
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 4000);
+  const timer = setTimeout(() => controller.abort(), 16000);
   try {
     const response = await fetch(url, { signal: controller.signal });
-    if (!response.ok) return [];
-    const data = (await response.json()) as { results?: Tweet[] };
-    return (data.results ?? []).flatMap((tweet) => {
+    if (!response.ok) return { posts: [] as Post[], cursor: undefined as string | undefined };
+    const data = (await response.json()) as { code?: number; results?: Tweet[]; cursor?: { bottom?: string | null } };
+    if (data.code && data.code !== 200) return { posts: [], cursor: undefined };
+    const posts = (data.results ?? []).flatMap((tweet) => {
       const post = toTaggedPost(tweet, tag, slug);
       return post ? [post] : [];
     });
+    return { posts, cursor: data.cursor?.bottom || undefined };
   } catch {
-    return [];
+    return { posts: [], cursor: undefined };
   } finally {
     clearTimeout(timer);
   }
@@ -36,12 +41,13 @@ export async function fetchTaggedPosts(tag: string, slug?: string) {
 
 export async function fetchOwnPosts(handle: string, slug: string, cursor?: string) {
   const url = new URL(`https://api.fxtwitter.com/2/profile/${handle}/statuses`);
+  url.searchParams.set("count", "100");
   url.searchParams.set("with_replies", "1");
   if (cursor) url.searchParams.set("cursor", cursor);
-  let response = await fetch(url);
+  let response = await fetchWithTimeout(url);
   if (!response.ok) {
     await new Promise((resolve) => setTimeout(resolve, 800));
-    response = await fetch(url);
+    response = await fetchWithTimeout(url);
   }
   if (!response.ok) throw new Error(String(response.status));
   const data = (await response.json()) as { results?: Tweet[]; cursor?: { bottom?: string } };
@@ -50,6 +56,16 @@ export async function fetchOwnPosts(handle: string, slug: string, cursor?: strin
     return post ? [post] : [];
   });
   return { posts, cursor: data.cursor?.bottom };
+}
+
+async function fetchWithTimeout(url: URL) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 12000);
+  try {
+    return await fetch(url, { signal: controller.signal });
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 function toTaggedPost(tweet: Tweet, tag: string, slug?: string): Post | null {

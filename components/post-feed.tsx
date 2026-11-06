@@ -26,8 +26,12 @@ export function PostFeed() {
   const [tag, setTag] = useState("all");
   const [fresh, setFresh] = useState<Post[]>([]);
   const [cursors, setCursors] = useState<Record<string, string | null>>({});
+  const cursorRef = useRef<Record<string, string | null>>({});
+  const walkGen = useRef<Record<string, number>>({});
   const [loaded, setLoaded] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [paging, setPaging] = useState(false);
+  const [shown, setShown] = useState(40);
   const [viewer, setViewer] = useState<MediaFile | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [filtersOpen, setFiltersOpen] = useState(false);
@@ -66,12 +70,40 @@ export function PostFeed() {
   }, [filtersOpen]);
 
   useEffect(() => {
+    setShown(40);
+  }, [member, tag, platform]);
+
+  useEffect(() => {
+    if (member === "all" && tag === "all") setPaging(false);
+  }, [member, tag]);
+
+  useEffect(() => {
     if (tag === "all") return;
     const slug = fanartTags.find((item) => item.tag === tag)?.slug;
     let stop = false;
-    void fetchTaggedPosts(tag, slug).then((found) => {
-      if (!stop && found.length > 0) setFresh((current) => [...current, ...found]);
-    });
+    setPaging(true);
+    void (async () => {
+      let cursor: string | undefined;
+      const seen = new Set<string>();
+      const seenIds = new Set<string>();
+      let empty = 0;
+      while (!stop && empty < 2) {
+        const page = await fetchTaggedPosts(tag, slug, cursor);
+        if (stop) return;
+        const novel = page.posts.filter((post) => !seenIds.has(post.id));
+        for (const post of page.posts) seenIds.add(post.id);
+        if (novel.length > 0) {
+          empty = 0;
+          setFresh((current) => mergePosts(novel, current));
+        } else {
+          empty += 1;
+        }
+        if (!page.cursor || seen.has(page.cursor)) break;
+        seen.add(page.cursor);
+        cursor = page.cursor;
+      }
+      if (!stop) setPaging(false);
+    })();
     return () => {
       stop = true;
     };
@@ -81,14 +113,65 @@ export function PostFeed() {
     let cancel = false;
     void loadPages(members, {}).then((page) => {
       if (cancel) return;
+      for (const [slug, cursor] of Object.entries(page.cursors)) {
+        if (walkGen.current[slug]) continue;
+        cursorRef.current[slug] = cursor;
+      }
       setFresh((current) => mergePosts(page.posts, current));
-      setCursors(page.cursors);
+      setCursors({ ...cursorRef.current });
       setLoaded(true);
     });
     return () => {
       cancel = true;
     };
   }, []);
+
+  useEffect(() => {
+    if (member === "all") return;
+    const item = members.find((person) => person.slug === member);
+    if (!item) return;
+    const slug = item.slug;
+    const handle = item.x.split("/").filter(Boolean).pop() ?? "";
+    const gen = (walkGen.current[slug] ?? 0) + 1;
+    walkGen.current[slug] = gen;
+    let stop = false;
+    setPaging(true);
+    void (async () => {
+      if (cursorRef.current[slug] === null) {
+        if (!stop) setPaging(false);
+        return;
+      }
+      let cursor = cursorRef.current[slug] || undefined;
+      const seen = new Set<string>();
+      const seenIds = new Set<string>();
+      let failures = 0;
+      while (!stop && walkGen.current[slug] === gen) {
+        if (cursor && seen.has(cursor)) break;
+        if (cursor) seen.add(cursor);
+        try {
+          const page = await fetchOwnPosts(handle, slug, cursor);
+          if (stop || walkGen.current[slug] !== gen) return;
+          failures = 0;
+          const novel = page.posts.filter((post) => !seenIds.has(post.id));
+          for (const post of page.posts) seenIds.add(post.id);
+          if (novel.length > 0) setFresh((current) => mergePosts(novel, current));
+          const next = page.cursor ?? null;
+          cursorRef.current[slug] = next;
+          setCursors({ ...cursorRef.current });
+          if (!next || next === cursor || (page.posts.length > 0 && novel.length === 0)) break;
+          cursor = next;
+        } catch {
+          failures += 1;
+          if (failures >= 5) break;
+          await new Promise((resolve) => setTimeout(resolve, 800));
+        }
+      }
+      if (!stop && walkGen.current[slug] === gen) setPaging(false);
+    })();
+    return () => {
+      stop = true;
+    };
+  }, [member]);
 
   const feed = useMemo(() => mergePosts(posts, fresh), [fresh]);
   const counts = useMemo(() => {
@@ -107,16 +190,21 @@ export function PostFeed() {
   });
 
   const historyTargets = members.filter((item) => member === "all" || item.slug === member);
-  const canLoadMore = loaded && platform !== "fanding" && historyTargets.some((item) => cursors[item.slug]);
-  const historyEnded = loaded && platform !== "fanding" && historyTargets.every((item) => cursors[item.slug] === null);
+  const canLoadMore = loaded && !paging && tag === "all" && platform !== "fanding" && historyTargets.some((item) => cursors[item.slug]);
+  const historyEnded = loaded && !paging && tag === "all" && platform !== "fanding" && historyTargets.length > 0 && historyTargets.every((item) => cursors[item.slug] === null);
+  const rows = visible.slice(0, shown);
 
   async function loadMore() {
-    const targets = historyTargets.filter((item) => cursors[item.slug]);
+    const targets = historyTargets.filter((item) => cursorRef.current[item.slug]);
     if (targets.length === 0 || loading) return;
     setLoading(true);
-    const page = await loadPages(targets, cursors);
-    setFresh((current) => [...current, ...page.posts]);
-    setCursors((current) => ({ ...current, ...page.cursors }));
+    const page = await loadPages(targets, cursorRef.current);
+    for (const [slug, cursor] of Object.entries(page.cursors)) {
+      if (walkGen.current[slug]) continue;
+      cursorRef.current[slug] = cursor;
+    }
+    setFresh((current) => mergePosts(page.posts, current));
+    setCursors({ ...cursorRef.current });
     setLoading(false);
   }
 
@@ -210,10 +298,12 @@ export function PostFeed() {
         </div>
       ) : null}
 
-      {visible.length === 0 ? (
+      {rows.length === 0 ? (
         <div className="py-16 text-center">
-          <p className="text-sm text-[#b0b4be]">{tag === "all" ? "게시물이 없습니다" : `가져온 글에는 ${tag} 가 없습니다`}</p>
-          {tag !== "all" ? (
+          <p className="text-sm text-[#b0b4be]">
+            {paging ? "글을 가져오는 중" : tag === "all" ? "게시물이 없습니다" : `가져온 글에는 ${tag} 가 없습니다`}
+          </p>
+          {tag !== "all" && !paging ? (
             <ExternalLink
               href={`https://x.com/search?q=${encodeURIComponent(tag)}&src=typed_query&f=live`}
               className="mt-4 inline-block text-sm font-medium text-violet"
@@ -224,7 +314,7 @@ export function PostFeed() {
         </div>
       ) : (
         <ul className="mt-6 divide-y divide-line border-t border-line">
-          {visible.map((post) => (
+          {rows.map((post) => (
             <PostRow
               key={post.id}
               post={post}
@@ -234,7 +324,11 @@ export function PostFeed() {
           ))}
         </ul>
       )}
+      {shown < visible.length ? <LoadTail onReach={() => setShown((count) => count + 40)} /> : null}
 
+      {paging && rows.length > 0 ? (
+        <p className="mt-4 text-center text-sm text-muted">이전 글을 가져오는 중 · {visible.length}개</p>
+      ) : null}
       {canLoadMore ? (
         <button
           type="button"
@@ -404,6 +498,24 @@ function mergePosts(saved: Post[], incoming: Post[]) {
 
 function previewSrc(src: string) {
   return src.replace("name=orig", "name=small");
+}
+
+function LoadTail({ onReach }: { onReach: () => void }) {
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const node = ref.current;
+    if (!node) return;
+    let done = false;
+    const observer = new IntersectionObserver((entries) => {
+      if (done || !entries.some((entry) => entry.isIntersecting)) return;
+      done = true;
+      observer.disconnect();
+      onReach();
+    }, { rootMargin: "600px" });
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, [onReach]);
+  return <div ref={ref} className="h-8" />;
 }
 
 function FilterChip({
