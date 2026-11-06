@@ -33,6 +33,7 @@ export function PostFeed() {
   const [viewer, setViewer] = useState<MediaFile | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [marks, setMarks] = useState<Record<string, Mark>>({});
+  const [filtersOpen, setFiltersOpen] = useState(false);
 
   async function save(file: MediaFile) {
     try {
@@ -61,6 +62,15 @@ export function PostFeed() {
   useEffect(() => {
     setMarks(readMarks());
   }, []);
+
+  useEffect(() => {
+    if (!filtersOpen) return;
+    function onKey(event: KeyboardEvent) {
+      if (event.key === "Escape") setFiltersOpen(false);
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [filtersOpen]);
 
   useEffect(() => {
     if (tag === "all") return;
@@ -134,51 +144,87 @@ export function PostFeed() {
           <GearIcon />
         </Link>
       </div>
-      <p className="mt-1 text-[15px] text-muted">스텔라이브 최신 소식</p>
-
-      <p className="mt-6 text-sm text-muted">플랫폼</p>
-      <div className="mt-3 flex flex-wrap gap-2">
-        {platforms.map((item) => (
-          <FilterChip
-            key={item.id}
-            active={platform === item.id}
-            label={`${item.label} (${counts[item.id]})`}
-            onClick={() => setPlatform(item.id)}
-          />
-        ))}
+      <div className="mt-1 flex items-center justify-between gap-3">
+        <p className="text-[15px] text-muted">스텔라이브 최신 소식</p>
+        <button
+          type="button"
+          aria-label="필터"
+          aria-expanded={filtersOpen}
+          onClick={() => setFiltersOpen(true)}
+          className="relative grid size-11 shrink-0 place-items-center rounded-full border-2 border-[#8d96a8] bg-white text-ink"
+        >
+          <FilterIcon />
+          {platform !== "all" || member !== "all" || tag !== "all" ? (
+            <span className="absolute right-0 top-0 size-2.5 rounded-full bg-violet" />
+          ) : null}
+        </button>
       </div>
+      {platform !== "all" || member !== "all" || tag !== "all" ? (
+        <div className="mt-3 flex flex-wrap gap-2">
+          {platform !== "all" ? <FilterChip active label={platforms.find((item) => item.id === platform)?.label ?? platform} onClick={() => setPlatform("all")} /> : null}
+          {member !== "all" ? <FilterChip active label={members.find((item) => item.slug === member)?.name ?? member} onClick={() => setMember("all")} /> : null}
+          {tag !== "all" ? <FilterChip active label={tag} onClick={() => setTag("all")} /> : null}
+        </div>
+      ) : null}
 
-      <p className="mt-5 text-sm text-muted">멤버</p>
-      <div className="mt-3 flex flex-wrap gap-2">
-        <FilterChip active={member === "all"} label="전체" onClick={() => setMember("all")} />
-        {members.map((item) => (
-          <FilterChip
-            key={item.slug}
-            active={member === item.slug}
-            label={item.name}
-            onClick={() => {
-              setMember(item.slug);
-              setTag("all");
-            }}
-          />
-        ))}
-      </div>
-
-      <p className="mt-5 text-sm text-muted">팬아트</p>
-      <div className="mt-3 flex flex-wrap gap-2">
-        <FilterChip active={tag === "all"} label="전체" onClick={() => setTag("all")} />
-        {fanartTags.map((item) => (
-          <FilterChip
-            key={item.tag}
-            active={tag === item.tag}
-            label={`${shortName(members.find((member) => member.slug === item.slug)?.name ?? item.slug)} ${item.tag}`}
-            onClick={() => {
-              setTag(item.tag);
-              setMember("all");
-            }}
-          />
-        ))}
-      </div>
+      {filtersOpen ? (
+        <div className="fixed inset-0 z-[70] flex items-end justify-center bg-black/40 md:items-center" onClick={() => setFiltersOpen(false)}>
+          <div
+            role="dialog"
+            aria-label="필터"
+            className="max-h-[80dvh] w-full max-w-md overflow-y-auto rounded-t-3xl bg-white px-5 pb-8 pt-5 md:rounded-3xl"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="flex items-center justify-between">
+              <h2 className="text-lg font-bold">필터</h2>
+              <button type="button" onClick={() => setFiltersOpen(false)} className="text-sm font-medium text-muted">
+                닫기
+              </button>
+            </div>
+            <p className="mt-5 text-sm text-muted">플랫폼</p>
+            <div className="mt-3 flex flex-wrap gap-2">
+              {platforms.map((item) => (
+                <FilterChip
+                  key={item.id}
+                  active={platform === item.id}
+                  label={`${item.label} (${counts[item.id]})`}
+                  onClick={() => setPlatform(item.id)}
+                />
+              ))}
+            </div>
+            <p className="mt-5 text-sm text-muted">멤버</p>
+            <div className="mt-3 flex flex-wrap gap-2">
+              <FilterChip active={member === "all"} label="전체" onClick={() => setMember("all")} />
+              {members.map((item) => (
+                <FilterChip
+                  key={item.slug}
+                  active={member === item.slug}
+                  label={item.name}
+                  onClick={() => {
+                    setMember(item.slug);
+                    setTag("all");
+                  }}
+                />
+              ))}
+            </div>
+            <p className="mt-5 text-sm text-muted">팬아트</p>
+            <div className="mt-3 flex flex-wrap gap-2">
+              <FilterChip active={tag === "all"} label="전체" onClick={() => setTag("all")} />
+              {fanartTags.map((item) => (
+                <FilterChip
+                  key={item.tag}
+                  active={tag === item.tag}
+                  label={`${shortName(members.find((person) => person.slug === item.slug)?.name ?? item.slug)} ${item.tag}`}
+                  onClick={() => {
+                    setTag(item.tag);
+                    setMember("all");
+                  }}
+                />
+              ))}
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       {visible.length === 0 ? (
         <div className="py-16 text-center">
@@ -449,6 +495,22 @@ function readMarks() {
 
 function platformLabel(platform: PostPlatform) {
   return platform === "fanding" ? "팬딩" : "X";
+}
+
+function FilterIcon() {
+  return (
+    <svg viewBox="0 0 24 24" className="size-6" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" aria-hidden>
+      <path d="M3 6h11" />
+      <path d="M18 6h3" />
+      <circle cx="16" cy="6" r="2.2" fill="white" />
+      <path d="M3 12h3" />
+      <path d="M10 12h11" />
+      <circle cx="8" cy="12" r="2.2" fill="white" />
+      <path d="M3 18h9" />
+      <path d="M16 18h5" />
+      <circle cx="14" cy="18" r="2.2" fill="white" />
+    </svg>
+  );
 }
 
 function GearIcon() {
