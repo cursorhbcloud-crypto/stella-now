@@ -14,6 +14,8 @@ export type Post = {
   videoPoster?: string;
   videoUrl?: string;
   replyTo?: string;
+  author?: string;
+  fanart?: boolean;
 };
 
 export const posts = data as Post[];

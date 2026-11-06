@@ -11,7 +11,7 @@ const previous = existsSync(outPath) ? JSON.parse(readFileSync(outPath, "utf8"))
 const next = [];
 
 for (const [, slug, handle] of pairs) {
-  const kept = previous.filter((post) => post.memberSlug === slug && post.platform === "x");
+  const kept = previous.filter((post) => post.memberSlug === slug && post.platform === "x" && !post.fanart);
   try {
     let posts = [];
     let lastError = new Error("no timeline");
@@ -34,6 +34,25 @@ for (const [, slug, handle] of pairs) {
     console.warn(`posts failed for ${slug}: ${error instanceof Error ? error.message : error}`);
   }
   await new Promise((resolve) => setTimeout(resolve, 400));
+}
+
+const fanartTags = [...source.matchAll(/\{\s*slug: "([^"]+)",\s*tag: "(#[^"]+)"\s*\}/g)].map(([, slug, tag]) => ({
+  slug,
+  tag,
+}));
+const keptFanart = previous.filter((post) => post.fanart);
+try {
+  const fanart = [];
+  for (const { slug, tag } of fanartTags) {
+    const posts = await fetchFanart(tag, slug);
+    fanart.push(...posts);
+    console.log(`${tag}: ${posts.length} fanart`);
+  }
+  if (fanart.length === 0) throw new Error("no fanart");
+  next.push(...fanart);
+} catch (error) {
+  next.push(...keptFanart);
+  console.warn(`fanart posts failed: ${error instanceof Error ? error.message : error}`);
 }
 
 const keptFanding = previous.filter((post) => post.platform === "fanding");
@@ -86,6 +105,65 @@ async function fetchFanding(memberNames) {
 function memberForTitle(title, memberNames) {
   const hits = memberNames.filter((member) => title.includes(member.name));
   return hits.length === 1 ? hits[0].slug : undefined;
+}
+
+async function fetchFanart(tag, slug) {
+  const posts = [];
+  const seen = new Set();
+  for (let start = 1; start <= 401; start += 40) {
+    const url = new URL("https://search.yahoo.co.jp/realtime/api/v1/pagination");
+    url.searchParams.set("p", tag);
+    url.searchParams.set("results", "40");
+    url.searchParams.set("start", String(start));
+    const response = await fetch(url, {
+      headers: {
+        Accept: "application/json, text/plain, */*",
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+        Referer: "https://search.yahoo.co.jp/realtime/search",
+      },
+    });
+    if (!response.ok) throw new Error(String(response.status));
+    const entries = (await response.json())?.timeline?.entry ?? [];
+    for (const entry of entries) {
+      const post = toFanart(entry, tag, slug);
+      if (!post || seen.has(post.id)) continue;
+      seen.add(post.id);
+      posts.push(post);
+    }
+    if (entries.length < 40) break;
+  }
+  return posts;
+}
+
+function toFanart(entry, tag, slug) {
+  if (!entry?.id || !entry.createdAt) return null;
+  const wanted = tag.replace(/^#/, "").toLowerCase();
+  const tagged = (entry.hashtags ?? []).some((item) => String(item.text ?? "").toLowerCase() === wanted);
+  const title = String(entry.displayText ?? "").replace(/\tSTART\t|\tEND\t/g, "").replace(/\s+/g, " ").trim();
+  if (!tagged && !title.toLowerCase().includes(tag.toLowerCase())) return null;
+  const text = tagged && !title.toLowerCase().includes(tag.toLowerCase()) ? `${title} ${tag}`.trim() : title;
+  if (!text) return null;
+  const images = [...new Set((entry.media ?? []).filter((media) => media.type === "image" && media.item?.mediaUrl && !String(media.item.mediaUrl).includes(".m3u8")).map((media) => media.item.mediaUrl))];
+  const video = (entry.media ?? []).find((media) => media.type === "video");
+  const videoPoster = video?.item?.thumbnailImageUrl;
+  const stamp = Number(entry.createdAt);
+  const created = new Date(stamp > 1e12 ? stamp : stamp * 1000);
+  if (Number.isNaN(created.getTime())) return null;
+  const createdAt = created.toISOString();
+  const author = entry.screenName ?? "";
+  return {
+    id: String(entry.id),
+    platform: "x",
+    fanart: true,
+    ...(slug ? { memberSlug: slug } : {}),
+    ...(author ? { author } : {}),
+    title: text,
+    href: author ? `https://x.com/${author}/status/${entry.id}` : `https://x.com/i/status/${entry.id}`,
+    date: seoulLabel(createdAt),
+    createdAt,
+    ...(images.length ? { images } : {}),
+    ...(videoPoster ? { videoPoster } : {}),
+  };
 }
 
 async function fetchOwnPosts(handle, slug) {

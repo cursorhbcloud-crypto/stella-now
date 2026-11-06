@@ -14,29 +14,86 @@ type Tweet = {
   };
 };
 
+type YahooEntry = {
+  id?: string;
+  displayText?: string;
+  createdAt?: number;
+  screenName?: string;
+  hashtags?: { text?: string }[];
+  media?: { type?: string; item?: { mediaUrl?: string; thumbnailImageUrl?: string } }[];
+};
+
 export async function fetchTaggedPosts(tag: string, slug?: string, cursor?: string) {
-  const url = new URL("https://api.fxtwitter.com/2/search");
-  url.searchParams.set("q", tag);
-  url.searchParams.set("feed", "latest");
-  url.searchParams.set("count", "100");
-  if (cursor) url.searchParams.set("cursor", cursor);
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 16000);
+  const start = Number(cursor) || 1;
   try {
-    const response = await fetch(url, { signal: controller.signal });
-    if (!response.ok) return { posts: [] as Post[], cursor: undefined as string | undefined };
-    const data = (await response.json()) as { code?: number; results?: Tweet[]; cursor?: { bottom?: string | null } };
-    if (data.code && data.code !== 200) return { posts: [], cursor: undefined };
-    const posts = (data.results ?? []).flatMap((tweet) => {
-      const post = toTaggedPost(tweet, tag, slug);
+    const data = await readYahoo(tag, start);
+    const entries = data?.timeline?.entry ?? [];
+    const posts = entries.flatMap((entry) => {
+      const post = toYahooPost(entry, tag, slug);
       return post ? [post] : [];
     });
-    return { posts, cursor: data.cursor?.bottom || undefined };
+    const next = entries.length >= 40 && start < 1000 ? String(start + 40) : undefined;
+    return { posts, cursor: next };
   } catch {
-    return { posts: [], cursor: undefined };
-  } finally {
-    clearTimeout(timer);
+    return { posts: [] as Post[], cursor: undefined as string | undefined };
   }
+}
+
+async function readYahoo(tag: string, start: number) {
+  const url = new URL("https://search.yahoo.co.jp/realtime/api/v1/pagination");
+  url.searchParams.set("p", tag);
+  url.searchParams.set("results", "40");
+  url.searchParams.set("start", String(start));
+  const { Capacitor, CapacitorHttp } = await import("@capacitor/core");
+  if (!Capacitor.isNativePlatform()) return null;
+  const response = await CapacitorHttp.get({
+    url: url.toString(),
+    headers: {
+      Accept: "application/json, text/plain, */*",
+      "User-Agent": "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 Chrome/124.0.0.0 Mobile Safari/537.36",
+      Referer: "https://search.yahoo.co.jp/realtime/search",
+    },
+  });
+  if (response.status !== 200) return null;
+  return response.data as { timeline?: { entry?: YahooEntry[] } };
+}
+
+function toYahooPost(entry: YahooEntry, tag: string, slug?: string): Post | null {
+  if (!entry.id || !entry.createdAt) return null;
+  const wanted = tag.replace(/^#/, "").toLowerCase();
+  const tagged = (entry.hashtags ?? []).some((item) => item.text?.toLowerCase() === wanted);
+  const title = cleanYahooText(entry.displayText ?? "");
+  if (!tagged && !title.toLowerCase().includes(tag.toLowerCase())) return null;
+  const text = tagged && !title.toLowerCase().includes(tag.toLowerCase()) ? `${title} ${tag}`.trim() : title;
+  if (!text) return null;
+  const images = (entry.media ?? [])
+    .filter((media) => media.type === "image" && media.item?.mediaUrl && !media.item.mediaUrl.includes(".m3u8"))
+    .map((media) => media.item?.mediaUrl)
+    .filter((url): url is string => Boolean(url));
+  const video = (entry.media ?? []).find((media) => media.type === "video");
+  const videoPoster = video?.item?.thumbnailImageUrl;
+  const stamp = Number(entry.createdAt);
+  const created = new Date(stamp > 1e12 ? stamp : stamp * 1000);
+  if (Number.isNaN(created.getTime())) return null;
+  const createdAt = created.toISOString();
+  const author = entry.screenName ?? "";
+  return {
+    id: String(entry.id),
+    platform: "x",
+    fanart: true,
+    ...(slug ? { memberSlug: slug } : {}),
+    ...(author ? { author } : {}),
+    title: text,
+    href: author ? `https://x.com/${author}/status/${entry.id}` : `https://x.com/i/status/${entry.id}`,
+    date: seoulLabel(createdAt),
+    createdAt,
+    ...(images.length ? { images: [...new Set(images)] } : {}),
+    ...(videoPoster ? { videoPoster } : {}),
+  };
+}
+
+function cleanYahooText(text: string) {
+  return text.replace(/\tSTART\t|\tEND\t/g, "").replace(/\s+/g, " ").trim();
 }
 
 export async function fetchOwnPosts(handle: string, slug: string, cursor?: string) {
@@ -66,32 +123,6 @@ async function fetchWithTimeout(url: URL) {
   } finally {
     clearTimeout(timer);
   }
-}
-
-function toTaggedPost(tweet: Tweet, tag: string, slug?: string): Post | null {
-  if (!tweet.text || !tweet.id || tweet.reposted_by) return null;
-  const title = tweet.text.replace(/\s+/g, " ").trim();
-  if (!new RegExp(`(?:^|[^\\w가-힣])${tag.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?![\\w가-힣])`, "i").test(title)) return null;
-  const stamp = Number(tweet.created_timestamp);
-  const created = Number.isFinite(stamp) ? new Date(stamp * 1000) : new Date();
-  const createdAt = Number.isNaN(created.getTime()) ? new Date().toISOString() : created.toISOString();
-  const author = tweet.author?.screen_name ?? "";
-  const images = (tweet.media?.photos ?? []).map((photo) => photo.url).filter((url): url is string => Boolean(url));
-  const video = tweet.media?.videos?.[0];
-  const videoPoster = video?.thumbnail_url;
-  const videoUrl = mp4Url(video);
-  return {
-    id: String(tweet.id),
-    platform: "x",
-    ...(slug ? { memberSlug: slug } : {}),
-    title,
-    href: tweet.url || (author ? `https://x.com/${author}/status/${tweet.id}` : `https://x.com/i/status/${tweet.id}`),
-    date: seoulLabel(createdAt),
-    createdAt,
-    ...(images.length ? { images } : {}),
-    ...(videoPoster ? { videoPoster } : {}),
-    ...(videoUrl ? { videoUrl } : {}),
-  };
 }
 
 function toPost(tweet: Tweet, handle: string, slug: string): Post | null {

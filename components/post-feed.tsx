@@ -378,7 +378,7 @@ function PostRow({
   onOpen: (file: MediaFile) => void;
   onSave: (file: MediaFile) => void;
 }) {
-  const name = members.find((item) => item.slug === post.memberSlug)?.name;
+  const name = post.author ?? members.find((item) => item.slug === post.memberSlug)?.name;
   const pictures = mediaFiles(post);
 
   return (
