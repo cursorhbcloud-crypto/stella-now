@@ -2,10 +2,10 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
-import { members, units, unitNameEn } from "@/content/members";
+import { graduates, members, units, unitNameEn } from "@/content/members";
 import { ProfileAvatar } from "@/components/profile-avatar";
-import { LiveMark } from "@/components/live-mark";
-import { isLive } from "@/content/live";
+import { SettingsButton } from "@/components/settings-button";
+import { LiveBadge, LiveDot, useLiveStatuses } from "@/components/live-status";
 
 const filters = [
   { id: "all", label: "전체" },
@@ -21,26 +21,45 @@ type FilterId = (typeof filters)[number]["id"];
 export function MemberList() {
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<FilterId>("all");
+  const { statuses, checked } = useLiveStatuses();
 
   const visible = useMemo(() => {
     const needle = query.trim().toLowerCase();
+    const matches = (name: string, nameEn: string) =>
+      !needle || name.toLowerCase().includes(needle) || nameEn.toLowerCase().includes(needle);
+    if (filter === "grad") {
+      return graduates
+        .filter((member) => matches(member.name, member.nameEn))
+        .map((member) => ({
+          slug: member.slug,
+          name: member.name,
+          nameEn: member.nameEn,
+          detail: `${member.gen}기 · 졸업`,
+          image: member.image,
+        }));
+    }
     return members
       .filter((member) => {
         const unit = units.find((item) => item.id === member.unit);
-        if (filter === "grad") return false;
         if (filter !== "all" && String(unit?.gen) !== filter) return false;
-        if (!needle) return true;
-        return (
-          member.name.toLowerCase().includes(needle) ||
-          member.nameEn.toLowerCase().includes(needle)
-        );
+        return matches(member.name, member.nameEn);
       })
-      .sort((a, b) => Number(isLive(b.slug)) - Number(isLive(a.slug)));
-  }, [query, filter]);
+      .sort((a, b) => Number(Boolean(checked[b.slug] && statuses[b.slug]?.live)) - Number(Boolean(checked[a.slug] && statuses[a.slug]?.live)))
+      .map((member) => ({
+        slug: member.slug,
+        name: member.name,
+        nameEn: member.nameEn,
+        detail: unitNameEn(member.unit),
+        image: undefined,
+      }));
+  }, [query, filter, statuses, checked]);
 
   return (
     <div>
-      <h1 className="text-[32px] font-bold tracking-tight">멤버</h1>
+      <div className="flex items-start justify-between">
+        <h1 className="text-[32px] font-bold tracking-tight">멤버</h1>
+        <SettingsButton />
+      </div>
       <p className="mt-1 text-[15px] text-muted">스텔라이브 멤버를 만나보세요</p>
 
       <label className="mt-5 flex h-14 items-center gap-3 rounded-2xl bg-[#f2f3f7] px-4">
@@ -86,18 +105,16 @@ export function MemberList() {
                 className="flex items-center gap-4 rounded-2xl bg-[#f2f3f7] px-4 py-3.5"
               >
                 <span className="relative">
-                  <ProfileAvatar slug={member.slug} />
-                  {isLive(member.slug) ? (
-                    <span className="absolute right-0 top-0 size-3 rounded-full border-2 border-[#f2f3f7] bg-[#ef3b3b]" />
-                  ) : null}
+                  <ProfileAvatar slug={member.slug} src={member.image} imageClassName={member.image ? "object-[center_18%]" : ""} />
+                  <LiveDot slug={member.slug} className="absolute right-0 top-0 size-3 rounded-full border-2 border-[#f2f3f7] bg-[#ef3b3b]" />
                 </span>
                 <span className="min-w-0 flex-1">
                   <span className="flex items-center gap-2 text-[16px] font-bold leading-tight">
                     {member.name}
-                    {isLive(member.slug) ? <LiveMark /> : null}
+                    <LiveBadge slug={member.slug} />
                   </span>
                   <span className="mt-0.5 block text-sm text-violet">{member.nameEn}</span>
-                  <span className="mt-0.5 block text-xs text-[#8b909c]">{unitNameEn(member.unit)}</span>
+                  <span className="mt-0.5 block text-xs text-[#8b909c]">{member.detail}</span>
                 </span>
                 <ChevronIcon />
               </Link>

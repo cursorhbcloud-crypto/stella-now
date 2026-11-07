@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { SettingsButton } from "@/components/settings-button";
 import { useEffect, useState, type ReactNode } from "react";
 import {
   monthCells,
@@ -31,7 +32,10 @@ export function ScheduleBoard() {
   if (!today || !visible) {
     return (
       <div>
-        <h1 className="text-[32px] font-bold tracking-tight">일정</h1>
+        <div className="flex items-start justify-between">
+          <h1 className="text-[32px] font-bold tracking-tight">일정</h1>
+          <SettingsButton />
+        </div>
         <p className="mt-1 text-[15px] text-muted">날짜를 누르면 그날 일정이 나와요</p>
         <div className="mt-6 h-[28rem] rounded-2xl bg-[#f7f8fb]" />
       </div>
@@ -55,7 +59,10 @@ export function ScheduleBoard() {
 
   return (
     <div>
-      <h1 className="text-[32px] font-bold tracking-tight">일정</h1>
+      <div className="flex items-start justify-between">
+        <h1 className="text-[32px] font-bold tracking-tight">일정</h1>
+        <SettingsButton />
+      </div>
       <p className="mt-1 text-[15px] text-muted">날짜를 누르면 그날 일정이 나와요</p>
 
       <div className="mt-6 md:grid md:grid-cols-[minmax(320px,420px)_minmax(0,1fr)] md:items-start md:gap-10">
@@ -148,7 +155,7 @@ export function ScheduleBoard() {
               ) : (
                 <ul className="mt-3 space-y-2">
                   {selectedEvents.map((item) => (
-                    <li key={`${item.title}-${item.month}-${item.day}`}>
+                    <li key={item.id ?? `${item.title}-${item.month}-${item.day}`}>
                       <EventCard item={item} date={selected} today={today} active />
                     </li>
                   ))}
@@ -211,7 +218,7 @@ function EventGroup({
       ) : (
         <ul className="mt-3 space-y-2">
           {entries.map(({ item, date }) => (
-            <li key={`${item.title}-${date.year}`}>
+            <li key={item.id ?? `${item.title}-${date.year}`}>
               <EventCard
                 item={item}
                 date={date}

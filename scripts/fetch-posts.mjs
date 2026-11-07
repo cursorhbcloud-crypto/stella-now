@@ -82,26 +82,35 @@ writeFileSync(outPath, `${JSON.stringify(next, null, 2)}\n`);
 console.log(`posts: ${next.length}`);
 
 async function fetchFanding(memberNames) {
-  const url = new URL("https://fanding.kr/rest/post_list");
-  url.searchParams.set("sMemberUrl", "stellive");
-  url.searchParams.set("iLimit", "12");
-  url.searchParams.set("sSortOrder", "recent");
-  url.searchParams.set("sVisibleOnlyOption", "T");
-  const response = await fetch(url, {
-    headers: { "User-Agent": "StellaNow/1.0", Accept: "application/json" },
-  });
-  if (!response.ok) throw new Error(String(response.status));
-  const list = (await response.json())?.aData?.aPostList ?? [];
-  return list
-    .filter((post) => post?.aAuthInfo?.bIsLock === false && post.sTitle && post.sInsDatetime)
-    .slice(0, 12)
-    .map((post) => {
+  const posts = [];
+  const seen = new Set();
+  let cursor = "";
+  for (let page = 0; page < 80; page += 1) {
+    const url = new URL("https://fanding.kr/rest/post_list");
+    url.searchParams.set("sMemberUrl", "stellive");
+    url.searchParams.set("iLimit", "20");
+    url.searchParams.set("sSortOrder", "recent");
+    url.searchParams.set("sVisibleOnlyOption", "F");
+    if (cursor) url.searchParams.set("iLastPostNo", cursor);
+    const response = await fetch(url, {
+      headers: { "User-Agent": "StellaNow/1.0", Accept: "application/json" },
+    });
+    if (!response.ok) throw new Error(String(response.status));
+    const data = await response.json();
+    const list = data?.aData?.aPostList ?? [];
+    if (list.length === 0) break;
+    for (const post of list) {
+      if (!post?.iPostNo || post.aAuthInfo?.bIsLock || !post.sTitle || !post.sInsDatetime) continue;
       const createdAt = new Date(`${String(post.sInsDatetime).replace(" ", "T")}+09:00`).toISOString();
       const title = String(post.sTitle).replace(/\s+/g, " ").trim();
+      if (!title || Number.isNaN(new Date(createdAt).getTime())) continue;
+      const id = `fanding-${post.iPostNo}`;
+      if (seen.has(id)) continue;
+      seen.add(id);
       const memberSlug = memberForTitle(title, memberNames);
       const image = post.sPostThumbnailUrl;
-      return {
-        id: `fanding-${post.iPostNo}`,
+      posts.push({
+        id,
         platform: "fanding",
         ...(memberSlug ? { memberSlug } : {}),
         title,
@@ -109,19 +118,24 @@ async function fetchFanding(memberNames) {
         date: seoulLabel(createdAt),
         createdAt,
         ...(image ? { images: [image] } : {}),
-      };
-    });
+      });
+    }
+    const next = data?.aData?.iLastPostNo;
+    if (!next || String(next) === cursor || list.length < 20) break;
+    cursor = String(next);
+  }
+  return posts;
 }
 
 async function fetchCafeNotices(memberNames) {
   const posts = [];
   const seen = new Set();
-  for (let page = 1; page <= 4; page += 1) {
+  for (let page = 1; page <= 40; page += 1) {
     const url = new URL("https://apis.naver.com/cafe-web/cafe2/ArticleListV2dot1.json");
     url.searchParams.set("search.clubid", "29424353");
     url.searchParams.set("search.menuid", "130");
     url.searchParams.set("search.page", String(page));
-    url.searchParams.set("search.perPage", "15");
+    url.searchParams.set("search.perPage", "50");
     const response = await fetch(url, {
       headers: {
         Accept: "application/json",

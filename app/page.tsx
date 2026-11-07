@@ -2,7 +2,7 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 import { LiveNow } from "@/components/live-now";
 import { getMember } from "@/content/members";
-import { schedule } from "@/content/schedule";
+import { posts } from "@/content/posts";
 import { tracks } from "@/content/tracks";
 
 export default function HomePage() {
@@ -24,28 +24,17 @@ export default function HomePage() {
       </section>
 
       <div className="md:grid md:grid-cols-2 md:gap-x-12">
-      <Section title="공지사항" href="/calendar">
-        {schedule.length === 0 ? (
+      <Section title="공지사항" href="/posts?platform=cafe">
+        {notices.length === 0 ? (
           <Empty label="공지사항이 없습니다" />
         ) : (
           <ul className="space-y-3">
-            {schedule.map((item) => (
-              <li key={`${item.month}-${item.day}`}>
-                {item.href.startsWith("/") ? (
-                  <Link href={item.href} className="block">
-                    <p className="text-xs text-muted">
-                      {item.month}월 {item.day}일
-                    </p>
-                    <p className="mt-0.5 text-[15px] font-medium">{item.title}</p>
-                  </Link>
-                ) : (
-                  <a href={item.href} className="block">
-                    <p className="text-xs text-muted">
-                      {item.month}월 {item.day}일
-                    </p>
-                    <p className="mt-0.5 text-[15px] font-medium">{item.title}</p>
-                  </a>
-                )}
+            {notices.map((post) => (
+              <li key={post.id}>
+                <a href={post.href} target="_blank" rel="noreferrer" className="block">
+                  <p className="text-xs text-muted">{post.date}</p>
+                  <p className="mt-0.5 line-clamp-2 text-[15px] font-medium leading-6">{post.title}</p>
+                </a>
               </li>
             ))}
           </ul>
@@ -74,6 +63,8 @@ export default function HomePage() {
     </div>
   );
 }
+
+const notices = posts.filter((post) => post.platform === "cafe").slice(0, 4);
 
 function Section({
   title,

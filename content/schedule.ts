@@ -1,4 +1,7 @@
+import { goodsEvents } from "@/content/goods-sales";
+
 export type ScheduleItem = {
+  id?: string;
   month: number;
   day: number;
   title: string;
@@ -13,7 +16,7 @@ export type CalendarDate = {
   day: number;
 };
 
-export const schedule: ScheduleItem[] = [
+const planned: ScheduleItem[] = [
   {
     year: 2026,
     month: 11,
@@ -29,6 +32,8 @@ export const schedule: ScheduleItem[] = [
     annual: true,
   },
 ];
+
+export const schedule: ScheduleItem[] = [...planned, ...goodsEvents()];
 
 export function seoulToday(now = new Date()): CalendarDate {
   const parts = new Intl.DateTimeFormat("en-US", {

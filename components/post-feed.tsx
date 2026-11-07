@@ -2,12 +2,14 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useOshi } from "@/components/oshi";
 import { ProfileAvatar } from "@/components/profile-avatar";
 import { fanartTags, members, shortName } from "@/content/members";
-import { posts, type Post, type PostPlatform } from "@/content/posts";
+import { posts, replyTargetLabel, replyText, type Post, type PostPlatform } from "@/content/posts";
 import { ExternalLink } from "@/components/external-link";
 import { saveRemoteFile } from "@/lib/save-file";
+import { fetchCafeNoticePage } from "@/lib/cafe-notices";
+import { fetchFandingPage } from "@/lib/fanding-posts";
+import { flushTweetArchive, readTweetArchive, rememberTweets } from "@/lib/tweet-cache";
 import { fetchOwnPosts, fetchTaggedPosts, fetchTweetCount } from "@/lib/x-timeline";
 
 const platforms = [
@@ -20,9 +22,8 @@ const platforms = [
 type PlatformFilter = (typeof platforms)[number]["id"];
 
 export function PostFeed() {
-  const { slug: oshi } = useOshi();
-  const appliedOshi = useRef(false);
   const [platform, setPlatform] = useState<PlatformFilter>("all");
+  const [query, setQuery] = useState("");
   const [member, setMember] = useState("all");
   const [tag, setTag] = useState("all");
   const [fresh, setFresh] = useState<Post[]>([]);
@@ -33,11 +34,17 @@ export function PostFeed() {
   const [loaded, setLoaded] = useState(false);
   const [walkId, setWalkId] = useState(0);
   const [paging, setPaging] = useState(false);
+  const [cafePaging, setCafePaging] = useState(false);
+  const [fandingPaging, setFandingPaging] = useState(false);
   const [tagPaging, setTagPaging] = useState(false);
   const [shown, setShown] = useState(40);
   const [viewer, setViewer] = useState<MediaFile | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [filtersOpen, setFiltersOpen] = useState(false);
+  const [routeReady, setRouteReady] = useState(false);
+  const [restored, setRestored] = useState(false);
+  const keptHistory = useRef(false);
+  const wantTweets = routeReady && member !== "none" && (tag === "all" || tag === "none");
   priorityRef.current = member === "none" ? "all" : member;
 
   async function save(file: MediaFile) {
@@ -52,17 +59,106 @@ export function PostFeed() {
   }
 
   useEffect(() => {
-    const slug = new URLSearchParams(window.location.search).get("member");
-    if (!slug || !members.some((item) => item.slug === slug)) return;
-    appliedOshi.current = true;
-    setMember(slug);
+    let cancel = false;
+    void readTweetArchive().then((archive) => {
+      if (cancel) return;
+      if (archive.posts.length > 0 || Object.keys(archive.cursors).length > 0) {
+        keptHistory.current = true;
+        cursorRef.current = { ...archive.cursors };
+        setFresh((current) => mergePosts(archive.posts, current));
+        setCursors({ ...cursorRef.current });
+        setLoaded(true);
+      }
+      setRestored(true);
+    });
+    function save() {
+      flushTweetArchive();
+    }
+    window.addEventListener("pagehide", save);
+    return () => {
+      cancel = true;
+      window.removeEventListener("pagehide", save);
+    };
   }, []);
 
   useEffect(() => {
-    if (appliedOshi.current || !oshi) return;
-    appliedOshi.current = true;
-    setMember(oshi);
-  }, [oshi]);
+    if (!restored) return;
+    let stop = false;
+    const known = new Set(posts.filter((post) => post.platform === "cafe").map((post) => post.id));
+    void (async () => {
+      const archive = await readTweetArchive();
+      if (stop) return;
+      for (const post of archive.posts) if (post.platform === "cafe") known.add(post.id);
+      const saved = archive.cursors["cafe-page"];
+      const done = saved === null;
+      let page = done ? 1 : Number(saved) || 1;
+      setCafePaging(true);
+      try {
+        while (!stop && page <= 40) {
+          const result = await fetchCafeNoticePage(page);
+          if (stop) return;
+          const novel = result.posts.filter((post) => !known.has(post.id));
+          for (const post of result.posts) known.add(post.id);
+          const next = !done && result.hasNext ? String(page + 1) : null;
+          cursorRef.current["cafe-page"] = next;
+          if (novel.length > 0) setFresh((current) => mergePosts(novel, current));
+          rememberTweets(novel, { "cafe-page": next });
+          if (!result.hasNext || (done && novel.length === 0)) break;
+          page += 1;
+        }
+      } catch {
+        // A failed page keeps the saved place. It must not mark the board finished.
+      }
+      if (!stop) setCafePaging(false);
+    })();
+    return () => {
+      stop = true;
+    };
+  }, [restored]);
+
+  useEffect(() => {
+    if (!restored) return;
+    let stop = false;
+    const known = new Set(posts.filter((post) => post.platform === "fanding").map((post) => post.id));
+    void (async () => {
+      const archive = await readTweetArchive();
+      if (stop) return;
+      for (const post of archive.posts) if (post.platform === "fanding") known.add(post.id);
+      const saved = archive.cursors["fanding-all"];
+      const done = saved === null;
+      let cursor = done ? undefined : saved || undefined;
+      setFandingPaging(true);
+      try {
+        while (!stop) {
+          const result = await fetchFandingPage(cursor);
+          if (stop) return;
+          const novel = result.posts.filter((post) => !known.has(post.id));
+          for (const post of result.posts) known.add(post.id);
+          const next = !done && result.next ? result.next : null;
+          cursorRef.current["fanding-all"] = next;
+          if (novel.length > 0) setFresh((current) => mergePosts(novel, current));
+          rememberTweets(novel, { "fanding-all": next });
+          if (!result.next || (done && novel.length === 0)) break;
+          cursor = result.next;
+        }
+      } catch {
+        // A failed page keeps the saved place. It must not mark the board finished.
+      }
+      if (!stop) setFandingPaging(false);
+    })();
+    return () => {
+      stop = true;
+    };
+  }, [restored]);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const slug = params.get("member");
+    if (slug && members.some((item) => item.slug === slug)) setMember(slug);
+    const requested = params.get("platform");
+    if (requested === "fanding" || requested === "cafe" || requested === "x") setPlatform(requested);
+    setRouteReady(true);
+  }, []);
 
   useEffect(() => {
     if (!filtersOpen) return;
@@ -75,9 +171,11 @@ export function PostFeed() {
 
   useEffect(() => {
     setShown(40);
-  }, [member, tag, platform]);
+    document.querySelector("main")?.scrollTo({ top: 0 });
+  }, [member, tag, platform, query]);
 
   useEffect(() => {
+    if (!wantTweets || !loaded) return;
     let cancel = false;
     void Promise.all(
       members.map(async (item) => {
@@ -92,7 +190,7 @@ export function PostFeed() {
     return () => {
       cancel = true;
     };
-  }, []);
+  }, [wantTweets, loaded]);
 
   useEffect(() => {
     if (tag === "all" || tag === "none") return;
@@ -127,23 +225,41 @@ export function PostFeed() {
   }, [tag]);
 
   useEffect(() => {
+    if (!restored || !wantTweets || loaded || keptHistory.current) return;
     let cancel = false;
     void loadPages(members, {}).then((page) => {
       if (cancel) return;
       for (const [slug, cursor] of Object.entries(page.cursors)) {
-        cursorRef.current[slug] = cursor;
+        if (cursorRef.current[slug] === undefined) cursorRef.current[slug] = cursor;
       }
       setFresh((current) => mergePosts(page.posts, current));
       setCursors({ ...cursorRef.current });
+      rememberTweets(page.posts, { ...cursorRef.current });
       setLoaded(true);
     });
     return () => {
       cancel = true;
     };
-  }, []);
+  }, [restored, wantTweets, loaded]);
 
   useEffect(() => {
-    if (!loaded) return;
+    if (!restored || !wantTweets || !keptHistory.current) return;
+    let cancel = false;
+    void loadPages(members, {}).then((page) => {
+      if (cancel) return;
+      setFresh((current) => mergePosts(page.posts, current));
+      rememberTweets(page.posts, {});
+    });
+    return () => {
+      cancel = true;
+    };
+  }, [restored, wantTweets]);
+
+  useEffect(() => {
+    if (!loaded || !wantTweets) {
+      setPaging(false);
+      return;
+    }
     let stop = false;
     const batch: Post[] = [];
     const seenCursor: Record<string, Set<string>> = {};
@@ -159,12 +275,20 @@ export function PostFeed() {
     }
 
     function flush(force = false) {
-      if (batch.length === 0) return;
-      if (!force && batch.length < 60 && Date.now() - lastFlush < 800) return;
+      if (batch.length === 0) {
+        if (force) {
+          rememberTweets([], { ...cursorRef.current });
+          flushTweetArchive();
+        }
+        return;
+      }
+      if (!force && Date.now() - lastFlush < 150) return;
       const incoming = batch.splice(0, batch.length);
       lastFlush = Date.now();
       setFresh((current) => mergePosts(incoming, current));
       setCursors({ ...cursorRef.current });
+      rememberTweets(incoming, { ...cursorRef.current });
+      if (force) flushTweetArchive();
     }
 
     async function pull(slug: string): Promise<"more" | "done" | "pause"> {
@@ -203,33 +327,31 @@ export function PostFeed() {
 
     void (async () => {
       const queue = members.map((item) => item.slug).filter((slug) => cursorRef.current[slug]);
-      setBusy(queue.length > 0);
-      while (!stop && queue.length > 0) {
-        setBusy(true);
-        const preferred = priorityRef.current;
-        if (preferred !== "all") {
-          const index = queue.indexOf(preferred);
-          if (index > 0) queue.unshift(queue.splice(index, 1)[0]);
-        }
-        const wave = queue.splice(0, 2);
-        const results = await Promise.all(wave.map(async (slug) => ({ slug, result: await pull(slug) })));
-        if (stop) {
-          flush(true);
-          return;
-        }
-        for (const { slug, result } of results) {
-          if (result === "more") queue.push(slug);
-        }
-        flush();
+      const preferred = priorityRef.current;
+      if (preferred !== "all") {
+        const index = queue.indexOf(preferred);
+        if (index > 0) queue.unshift(queue.splice(index, 1)[0]);
       }
+      setBusy(queue.length > 0);
+      await Promise.all(
+        queue.map(async (slug) => {
+          while (!stop) {
+            const result = await pull(slug);
+            if (stop) return;
+            flush();
+            if (result !== "more") return;
+          }
+        }),
+      );
       flush(true);
       if (!stop) setBusy(false);
     })();
 
     return () => {
       stop = true;
+      flush(true);
     };
-  }, [loaded, walkId]);
+  }, [loaded, walkId, wantTweets]);
 
   const feed = useMemo(() => mergePosts(posts, fresh), [fresh]);
   const counts = useMemo(() => {
@@ -248,6 +370,7 @@ export function PostFeed() {
   const visible = feed.filter((post) => {
     if (!matchesScope(post, member, tag)) return false;
     if (platform !== "all" && post.platform !== platform) return false;
+    if (!matchesQuery(post, query)) return false;
     return true;
   });
 
@@ -285,18 +408,43 @@ export function PostFeed() {
           ) : null}
         </button>
       </div>
-      {platform !== "all" || (member !== "all" && member !== "none") || (tag !== "all" && tag !== "none") ? (
+      <div className="mt-4 flex h-14 items-center gap-3 rounded-2xl bg-[#f2f3f7] px-4">
+        <SearchIcon />
+        <input
+          value={query}
+          onChange={(event) => setQuery(event.target.value)}
+          aria-label="게시물 검색"
+          placeholder="게시물 검색"
+          className="w-full bg-transparent text-[15px] outline-none placeholder:text-[#b0b4be]"
+        />
+        {query ? (
+          <button type="button" onClick={() => setQuery("")} className="shrink-0 text-sm font-medium text-muted">
+            지우기
+          </button>
+        ) : null}
+      </div>
+      <div className="mt-4 flex flex-wrap gap-2">
+        {platforms.map((item) => (
+          <FilterChip key={item.id} active={platform === item.id} label={item.label} onClick={() => setPlatform(item.id)} />
+        ))}
+      </div>
+      {(member !== "all" && member !== "none") || (tag !== "all" && tag !== "none") ? (
         <div className="mt-3 flex flex-wrap gap-2">
-          {platform !== "all" ? <FilterChip active label={platforms.find((item) => item.id === platform)?.label ?? platform} onClick={() => setPlatform("all")} /> : null}
           {member !== "all" && member !== "none" ? <FilterChip active label={members.find((item) => item.slug === member)?.name ?? member} onClick={() => setMember("all")} /> : null}
           {tag !== "all" && tag !== "none" ? <FilterChip active label={tag} onClick={() => setTag("all")} /> : null}
         </div>
       ) : null}
-      {showTweetHistory && totalsReady && scopeTotal > 0 ? (
+      {showTweetHistory && restored && totalsReady && scopeTotal > 0 ? (
         <p className="mt-3 text-sm leading-6 text-muted">
           {member === "all" ? "멤버 계정" : "이 계정"}에 있는 글은 {scopeTotal.toLocaleString("ko-KR")}개입니다. 지금까지 직접 쓴 글 {loadedTweets.toLocaleString("ko-KR")}개를 불러왔습니다.
           {paging ? " 이전 글을 이어서 가져오는 중입니다." : ""}
         </p>
+      ) : null}
+      {cafePaging ? (
+        <p className="mt-3 text-sm leading-6 text-muted">카페 공지를 가져오는 중 · {counts.cafe.toLocaleString("ko-KR")}개</p>
+      ) : null}
+      {fandingPaging ? (
+        <p className="mt-3 text-sm leading-6 text-muted">팬딩 글을 가져오는 중 · {counts.fanding.toLocaleString("ko-KR")}개</p>
       ) : null}
 
       {filtersOpen ? (
@@ -360,7 +508,7 @@ export function PostFeed() {
       {rows.length === 0 ? (
         <div className="py-16 text-center">
           <p className="text-sm text-[#b0b4be]">
-            {tagPaging || (paging && member !== "none") ? "글을 가져오는 중" : "게시물이 없습니다"}
+            {query.trim() ? "검색 결과가 없습니다" : tagPaging || (paging && member !== "none") ? "글을 가져오는 중" : "게시물이 없습니다"}
           </p>
           {tag !== "all" && tag !== "none" && !tagPaging ? (
             <ExternalLink
@@ -439,19 +587,20 @@ function PostRow({
 }) {
   const name = post.author ?? members.find((item) => item.slug === post.memberSlug)?.name;
   const pictures = mediaFiles(post);
+  const body = replyText(post.title, post.replyTo);
 
   return (
     <li className="py-4">
-      <div className="flex gap-3">
-        {post.memberSlug ? <ProfileAvatar slug={post.memberSlug} className="size-10" /> : null}
+      <div className={`flex gap-3 ${post.replyTo ? "ml-5 border-l-2 border-line pl-3" : ""}`}>
+        {post.memberSlug ? <ProfileAvatar slug={post.memberSlug} className={post.replyTo ? "size-8" : "size-10"} /> : null}
         <div className="min-w-0 flex-1">
           <a href={post.href} target="_blank" rel="noreferrer" className="block">
             <span className="block text-sm">
               <span className="font-medium">{name ?? platformLabel(post.platform)}</span>
               <span className="text-muted"> · {post.date}</span>
             </span>
-            {post.replyTo ? <span className="mt-1 block break-words text-sm text-muted">@{post.replyTo}에게 답글</span> : null}
-            <span className="mt-1 block break-words text-[15px] leading-6">{post.title}</span>
+            {post.replyTo ? <span className="mt-0.5 block break-words text-[13px] text-muted">{replyTargetLabel(post.replyTo)}에게</span> : null}
+            {body ? <span className="mt-1 block break-words text-[15px] leading-6">{body}</span> : null}
           </a>
           {pictures.length > 0 ? (
             <div className={`mt-2 grid gap-1 ${pictures.length > 1 ? "grid-cols-2" : "grid-cols-1"}`}>
@@ -537,6 +686,27 @@ async function loadPages(targets: { slug: string; x: string }[], cursors: Record
     }),
   );
   return { posts, cursors: next };
+}
+
+function matchesQuery(post: Post, query: string) {
+  const terms = query.trim().toLowerCase().split(/\s+/).filter(Boolean);
+  if (terms.length === 0) return true;
+  const person = members.find((item) => item.slug === post.memberSlug);
+  const haystack = [
+    post.title,
+    replyText(post.title, post.replyTo),
+    post.author,
+    post.date,
+    person?.name,
+    person?.nameEn,
+    person ? shortName(person.name) : "",
+    post.replyTo ? replyTargetLabel(post.replyTo) : "",
+    platformLabel(post.platform),
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+  return terms.every((term) => haystack.includes(term));
 }
 
 function matchesScope(post: Post, member: string, tag: string) {
@@ -631,6 +801,15 @@ function RepostIcon() {
       <path d="M20 7A8 8 0 0 0 6.2 6.2" />
       <path d="M7 20H4v-3" />
       <path d="M4 17a8 8 0 0 0 13.8 1.8" />
+    </svg>
+  );
+}
+
+function SearchIcon() {
+  return (
+    <svg viewBox="0 0 24 24" className="size-5 shrink-0 text-violet" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
+      <circle cx="11" cy="11" r="6.5" />
+      <path d="M16 16.5 20 20.5" strokeLinecap="round" />
     </svg>
   );
 }

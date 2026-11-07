@@ -2,15 +2,25 @@ import profiles from "@/content/chzzk-profiles.json";
 
 const images = profiles as Record<string, string>;
 
-export function ProfileAvatar({ slug, className = "size-14" }: { slug: string; className?: string }) {
-  const src = images[slug];
+export function ProfileAvatar({
+  slug,
+  src,
+  className = "size-14",
+  imageClassName = "",
+}: {
+  slug: string;
+  src?: string;
+  className?: string;
+  imageClassName?: string;
+}) {
+  const image = src ?? images[slug];
 
   return (
     <span className={`grid shrink-0 place-items-center overflow-hidden rounded-full bg-violet text-white ${className}`}>
-      {src ? (
-        // Chzzk profile photos are hosted on Naver's image CDN.
+      {image ? (
+        // Profile photos stay on the original host.
         // eslint-disable-next-line @next/next/no-img-element
-        <img src={src} alt="" className="size-full object-cover" referrerPolicy="no-referrer" />
+        <img src={image} alt="" className={`size-full object-cover ${imageClassName}`} referrerPolicy="no-referrer" />
       ) : (
         <svg viewBox="0 0 24 24" className="size-7" fill="currentColor" aria-hidden>
           <circle cx="12" cy="8.2" r="3.3" />

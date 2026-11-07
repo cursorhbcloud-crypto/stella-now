@@ -43,6 +43,7 @@ export const members: Member[] = [
     chzzk: "https://chzzk.naver.com/36ddb9bb4f17593b60f1b63cec86611d",
     youtube: "https://www.youtube.com/channel/UC0YQnenKBCu5sGb7H61n6HA",
     x: "https://x.com/SakihaneHuya",
+    profile: "https://stellive.me/huya",
   },
   {
     slug: "hina",
@@ -52,6 +53,7 @@ export const members: Member[] = [
     chzzk: "https://chzzk.naver.com/b044e3a3b9259246bc92e863e7d3f3b8",
     youtube: "https://www.youtube.com/@shirayukihina",
     x: "https://x.com/Shirayukihina_",
+    profile: "https://stellive.me/hina",
   },
   {
     slug: "mashiro",
@@ -61,6 +63,7 @@ export const members: Member[] = [
     chzzk: "https://chzzk.naver.com/4515b179f86b67b4981e16190817c580",
     youtube: "https://www.youtube.com/@neneko_mashiro",
     x: "https://x.com/NenekoMashiro",
+    profile: "https://stellive.me/mashiro",
   },
   {
     slug: "lize",
@@ -70,6 +73,7 @@ export const members: Member[] = [
     chzzk: "https://chzzk.naver.com/4325b1d5bbc321fad3042306646e2e50",
     youtube: "https://www.youtube.com/@akanelize",
     x: "https://x.com/AkaneLize",
+    profile: "https://stellive.me/lize",
   },
   {
     slug: "tabi",
@@ -79,6 +83,7 @@ export const members: Member[] = [
     chzzk: "https://chzzk.naver.com/a6c4ddb09cdb160478996007bff35296",
     youtube: "https://www.youtube.com/@arahashitabi",
     x: "https://x.com/ArahashiTabi",
+    profile: "https://stellive.me/tabi",
   },
   {
     slug: "shibuki",
@@ -88,6 +93,7 @@ export const members: Member[] = [
     chzzk: "https://chzzk.naver.com/64d76089fba26b180d9c9e48a32600d9",
     youtube: "https://www.youtube.com/@tenkoshibuki",
     x: "https://x.com/TenkoShibuki",
+    profile: "https://stellive.me/shibuki",
   },
   {
     slug: "rin",
@@ -97,6 +103,7 @@ export const members: Member[] = [
     chzzk: "https://chzzk.naver.com/516937b5f85cbf2249ce31b0ad046b0f",
     youtube: "https://www.youtube.com/@aokumorin",
     x: "https://x.com/AokumoRin",
+    profile: "https://stellive.me/rin",
   },
   {
     slug: "nana",
@@ -106,6 +113,7 @@ export const members: Member[] = [
     chzzk: "https://chzzk.naver.com/4d812b586ff63f8a2946e64fa860bbf5",
     youtube: "https://www.youtube.com/@hanako_nana",
     x: "https://x.com/HanakoNana_",
+    profile: "https://stellive.me/nana",
   },
   {
     slug: "riko",
@@ -115,6 +123,7 @@ export const members: Member[] = [
     chzzk: "https://chzzk.naver.com/8fd39bb8de623317de90654718638b10",
     youtube: "https://www.youtube.com/@yuzuhariko",
     x: "https://x.com/YuzuhaRiko",
+    profile: "https://stellive.me/riko",
   },
   {
     slug: "toa",
@@ -124,6 +133,7 @@ export const members: Member[] = [
     chzzk: "https://chzzk.naver.com/2299fad4bebb504b0978e1ec08b2f7d3",
     youtube: "https://www.youtube.com/@ShizukiToa",
     x: "https://x.com/Shizukitoa_",
+    profile: "https://stellive.me/toa",
   },
   {
     slug: "rang",
@@ -133,6 +143,7 @@ export const members: Member[] = [
     chzzk: "https://chzzk.naver.com/c657aa3592260a2b59669a72ec151936",
     youtube: "https://www.youtube.com/@coganerang",
     x: "https://x.com/Coganerang",
+    profile: "https://stellive.me/rang",
   },
   {
     slug: "hiyori",
@@ -142,6 +153,7 @@ export const members: Member[] = [
     chzzk: "https://chzzk.naver.com/49d2c3cf8f0b2843d934ec15e82bb54c",
     youtube: "https://www.youtube.com/@HanayoHiyori",
     x: "https://x.com/hanayohiyori",
+    profile: "https://stellive.me/hiyori",
   },
   {
     slug: "mary",
@@ -151,11 +163,40 @@ export const members: Member[] = [
     chzzk: "https://chzzk.naver.com/792acf9ca28b42918710327e14b06b68",
     youtube: "https://www.youtube.com/@TokinoMaryChannel",
     x: "https://x.com/TokinoMary",
+    profile: "https://stellive.me/mary",
+  },
+];
+
+export type Graduate = {
+  slug: string;
+  name: string;
+  nameEn: string;
+  gen: number;
+  graduated: { year: number; month: number; day: number };
+  image: string;
+  notice: string;
+  page: string;
+};
+
+export const graduates: Graduate[] = [
+  {
+    slug: "kanna",
+    name: "아이리 칸나",
+    nameEn: "Airi Kanna",
+    gen: 1,
+    graduated: { year: 2024, month: 12, day: 2 },
+    image: "https://stellive.me/files/attach/images/talents/list/GRADUATE/Q4BtY5/kanna.png",
+    notice: "https://stellive.me/news/3431",
+    page: "https://stellive.me/graduation",
   },
 ];
 
 export function getMember(slug: string) {
   return members.find((member) => member.slug === slug);
+}
+
+export function getGraduate(slug: string) {
+  return graduates.find((member) => member.slug === slug);
 }
 
 export function chzzkLiveUrl(chzzk: string) {

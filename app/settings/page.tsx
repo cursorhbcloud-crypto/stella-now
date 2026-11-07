@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useEffect, useState } from "react";
 import { ExternalLink } from "@/components/external-link";
 import { useOshi } from "@/components/oshi";
 import { ProfileAvatar } from "@/components/profile-avatar";
@@ -19,8 +20,14 @@ const shortcuts = [
 ];
 
 export default function SettingsPage() {
-  const { slug, choose, clear } = useOshi();
+  const { slug, alert, choose, clear, setAlerts } = useOshi();
   const oshi = members.find((member) => member.slug === slug);
+  const [deviceAlert, setDeviceAlert] = useState<NotificationPermission | "unknown">("unknown");
+
+  useEffect(() => {
+    setDeviceAlert(typeof Notification === "undefined" ? "denied" : Notification.permission);
+  }, [alert]);
+
   return (
     <div>
       <h1 className="text-[32px] font-bold tracking-tight">설정</h1>
@@ -35,8 +42,27 @@ export default function SettingsPage() {
           ) : null}
         </div>
         <p className="mt-1 text-sm leading-6 text-muted">
-          {oshi ? `${oshi.name} 글을 게시물에서 먼저 보여요.` : "멤버를 고르면 그 글을 게시물에서 먼저 보여요."}
+          멤버를 고르고 알림을 켜면, 이 화면이 켜져 있는 동안 그 멤버의 방송이 시작될 때 알려줍니다.
         </p>
+        <div className="mt-3 flex items-center justify-between gap-3 rounded-xl border border-line px-4 py-3.5">
+          <span>
+            <span className="block font-medium">방송 알림</span>
+            <span className="mt-0.5 block text-sm text-muted">
+              {!oshi ? "먼저 멤버를 고르세요." : alert && deviceAlert === "denied" ? "기기 알림이 꺼져 있어 앱 안에서만 알려줍니다." : alert ? "켜짐" : "꺼짐"}
+            </span>
+          </span>
+          <button
+            type="button"
+            role="switch"
+            aria-checked={alert}
+            aria-label="방송 알림"
+            disabled={!oshi}
+            onClick={() => void setAlerts(!alert)}
+            className={`relative h-7 w-12 shrink-0 rounded-full ${alert ? "bg-violet" : "bg-[#e6e8ee]"} disabled:opacity-40`}
+          >
+            <span className={`absolute top-0.5 size-6 rounded-full bg-white ${alert ? "left-5" : "left-0.5"}`} />
+          </button>
+        </div>
         <ul className="mt-3 grid grid-cols-2 gap-2 md:grid-cols-4 lg:grid-cols-7">
           {members.map((member) => {
             const active = member.slug === slug;

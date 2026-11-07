@@ -1,16 +1,27 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { LiveMark } from "@/components/live-mark";
+import { LiveBadge, LiveDot, LiveWatch } from "@/components/live-status";
 import { OshiButton } from "@/components/oshi-button";
 import { ProfileAvatar } from "@/components/profile-avatar";
-import { liveInfo } from "@/content/live";
-import { chzzkLiveUrl, getMember, members, shortName, unitName, unitTone, units } from "@/content/members";
-import { posts, type PostPlatform } from "@/content/posts";
+import { SettingsButton } from "@/components/settings-button";
+import {
+  chzzkLiveUrl,
+  getGraduate,
+  getMember,
+  graduates,
+  members,
+  shortName,
+  unitName,
+  unitTone,
+  units,
+  type Graduate,
+} from "@/content/members";
+import { posts, replyTargetLabel, replyText, type PostPlatform } from "@/content/posts";
 import { tracks } from "@/content/tracks";
 
 export function generateStaticParams() {
-  return members.map((member) => ({ slug: member.slug }));
+  return [...members, ...graduates].map((member) => ({ slug: member.slug }));
 }
 
 export async function generateMetadata({
@@ -19,7 +30,7 @@ export async function generateMetadata({
   params: Promise<{ slug: string }>;
 }): Promise<Metadata> {
   const { slug } = await params;
-  const member = getMember(slug);
+  const member = getMember(slug) ?? getGraduate(slug);
   return { title: member ? `${member.name} · Stella Now` : "Stella Now" };
 }
 
@@ -29,21 +40,25 @@ export default async function MemberPage({
   params: Promise<{ slug: string }>;
 }) {
   const { slug } = await params;
+  const graduate = getGraduate(slug);
+  if (graduate) return <GraduatePage graduate={graduate} />;
   const member = getMember(slug);
   if (!member) notFound();
 
   const unit = units.find((item) => item.id === member.unit);
   const tone = unitTone[member.unit];
-  const live = liveInfo(member.slug);
   const notes = memberPosts(member.slug);
   const songs = tracks.filter((track) => track.memberSlug === member.slug);
   const mates = members.filter((item) => item.unit === member.unit && item.slug !== member.slug);
 
   return (
     <article>
-      <Link href="/members" className="text-sm font-medium text-muted">
-        멤버
-      </Link>
+      <div className="flex items-center justify-between">
+        <Link href="/members" className="text-sm font-medium text-muted">
+          멤버
+        </Link>
+        <SettingsButton />
+      </div>
 
       <div className="mt-4 md:grid md:grid-cols-[minmax(0,340px)_1fr] md:items-start md:gap-x-12">
         <div>
@@ -51,15 +66,13 @@ export default async function MemberPage({
             <div className="flex items-start gap-4">
               <span className="relative">
                 <ProfileAvatar slug={member.slug} className="size-24 ring-4 ring-white" />
-                {live.live ? (
-                  <span className="absolute right-1 top-1 size-3.5 rounded-full border-2 border-white bg-[#ef3b3b]" />
-                ) : null}
+                <LiveDot slug={member.slug} className="absolute right-1 top-1 size-3.5 rounded-full border-2 border-white bg-[#ef3b3b]" />
               </span>
               <div className="min-w-0 pt-1">
                 <p className="text-sm font-medium text-violet">{member.nameEn}</p>
                 <h1 className="mt-1 flex flex-wrap items-center gap-2 text-[28px] font-bold leading-tight tracking-tight">
                   {member.name}
-                  {live.live ? <LiveMark /> : null}
+                  <LiveBadge slug={member.slug} />
                 </h1>
                 <div className="mt-3 flex flex-wrap gap-1.5">
                   <span className="rounded-full px-2.5 py-1 text-xs font-medium" style={{ background: tone.wash, color: tone.text }}>
@@ -78,15 +91,7 @@ export default async function MemberPage({
                 </div>
               </div>
             </div>
-            {live.live ? (
-              <a
-                href={chzzkLiveUrl(member.chzzk)}
-                className="mt-5 flex items-center justify-between rounded-2xl bg-white px-4 py-3"
-              >
-                <span className="text-sm font-medium text-[#ef3b3b]">지금 방송 중</span>
-                <span className="text-xs text-muted">시청 {live.viewers.toLocaleString("ko-KR")}명</span>
-              </a>
-            ) : null}
+            <LiveWatch slug={member.slug} href={chzzkLiveUrl(member.chzzk)} />
           </header>
 
           {member.lore ? (
@@ -96,8 +101,8 @@ export default async function MemberPage({
           <div className="mt-4 grid grid-cols-2 gap-2">
             <Tile href={chzzkLiveUrl(member.chzzk)} label="치지직" primary />
             <Tile href={member.youtube} label="유튜브" external />
-            <Tile href={member.x} label="X" external wide={!member.profile || member.unit === "abyss"} />
-            {member.profile && member.unit !== "abyss" ? <Tile href={member.profile} label="공식 프로필" external /> : null}
+            <Tile href={member.x} label="X" external wide={!member.profile} />
+            {member.profile ? <Tile href={member.profile} label="공식 프로필" external /> : null}
           </div>
 
           <div className="mt-2">
@@ -144,9 +149,10 @@ export default async function MemberPage({
                         ) : null}
                         <span className="min-w-0">
                           <span className="block text-[11px] text-muted">
-                            {platformLabel(post.platform)} · {post.date}
+                            {platformLabel(post.platform)}
+                            {post.replyTo ? ` · ${replyTargetLabel(post.replyTo)}에게` : ""} · {post.date}
                           </span>
-                          <span className="mt-1 block line-clamp-2 text-sm leading-5">{post.title}</span>
+                          <span className="mt-1 block line-clamp-2 text-sm leading-5">{replyText(post.title, post.replyTo) || post.title}</span>
                         </span>
                       </a>
                     </li>
@@ -172,6 +178,40 @@ export default async function MemberPage({
             </section>
           ) : null}
         </div>
+      </div>
+    </article>
+  );
+}
+
+function GraduatePage({ graduate }: { graduate: Graduate }) {
+  return (
+    <article>
+      <div className="flex items-center justify-between">
+        <Link href="/members" className="text-sm font-medium text-muted">
+          멤버
+        </Link>
+        <SettingsButton />
+      </div>
+      <header className="mt-4 rounded-3xl bg-[#f7f8fb] px-5 py-6">
+        <div className="flex items-start gap-4">
+          <ProfileAvatar slug={graduate.slug} src={graduate.image} className="size-24" imageClassName="object-[center_18%]" />
+          <div className="min-w-0 pt-1">
+            <p className="text-sm font-medium text-violet">{graduate.nameEn}</p>
+            <h1 className="mt-1 text-[28px] font-bold leading-tight tracking-tight">{graduate.name}</h1>
+            <div className="mt-3 flex flex-wrap gap-1.5">
+              <span className="rounded-full bg-white px-2.5 py-1 text-xs font-medium text-[#5c6270]">
+                {graduate.gen}기 · 졸업
+              </span>
+              <span className="rounded-full bg-white px-2.5 py-1 text-xs font-medium text-[#5c6270]">
+                {graduate.graduated.year}년 {graduate.graduated.month}월 {graduate.graduated.day}일
+              </span>
+            </div>
+          </div>
+        </div>
+      </header>
+      <div className="mt-4 grid grid-cols-2 gap-2">
+        <Tile href={graduate.notice} label="졸업 공지" external />
+        <Tile href={graduate.page} label="졸업생 페이지" external />
       </div>
     </article>
   );

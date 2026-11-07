@@ -46,37 +46,83 @@ export async function fetchPublishedLive(): Promise<Record<string, LiveInfo>> {
   return Object.fromEntries(Object.entries(data).map(([slug, value]) => [slug, normalizeLive(value)]));
 }
 
-async function readChzzk(url: string): Promise<LiveInfo> {
-  const { CapacitorHttp } = await import("@capacitor/core");
-  const response = await CapacitorHttp.get({
-    url,
-    headers: { Accept: "application/json", "User-Agent": "StellaNow/1.0" },
+function channelIdOf(chzzk: string) {
+  return chzzk.split("/").filter(Boolean).pop() ?? "";
+}
+
+const liveTimeout = 8000;
+
+function withTimeout<T>(work: Promise<T>): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error("timeout")), liveTimeout);
+    work.then(
+      (value) => {
+        clearTimeout(timer);
+        resolve(value);
+      },
+      (error) => {
+        clearTimeout(timer);
+        reject(error);
+      },
+    );
   });
+}
+
+async function readChzzkDirect(url: string): Promise<LiveInfo> {
+  const { CapacitorHttp } = await import("@capacitor/core");
+  const response = await withTimeout(
+    CapacitorHttp.get({
+      url,
+      headers: { Accept: "application/json", "User-Agent": "StellaNow/1.0" },
+    }),
+  );
   if (response.status < 200 || response.status >= 300) throw new Error(String(response.status));
   const data = typeof response.data === "string" ? JSON.parse(response.data) : response.data;
   return parseLiveStatus(data);
 }
 
-export async function refreshMemberLives(
-  people: { slug: string; chzzk: string }[],
-): Promise<Record<string, LiveInfo>> {
-  const { Capacitor } = await import("@capacitor/core");
-  if (!Capacitor.isNativePlatform()) return fetchPublishedLive();
+async function readChzzkPage(channelId: string): Promise<LiveInfo> {
+  const response = await fetch(`/chzzk-live/${channelId}`, {
+    cache: "no-store",
+    headers: { Accept: "application/json" },
+    signal: AbortSignal.timeout(liveTimeout),
+  });
+  if (!response.ok) throw new Error(String(response.status));
+  return parseLiveStatus(await response.json());
+}
 
+async function readMembers(
+  people: { slug: string; chzzk: string }[],
+  read: (channelId: string) => Promise<LiveInfo>,
+  onUpdate?: (slug: string, info: LiveInfo) => void,
+) {
   const rows = await Promise.all(
     people.map(async (member) => {
-      const channelId = member.chzzk.split("/").filter(Boolean).pop() ?? "";
       try {
-        const info = await readChzzk(
-          `https://api.chzzk.naver.com/polling/v2/channels/${channelId}/live-status`,
-        );
+        const info = await read(channelIdOf(member.chzzk));
+        onUpdate?.(member.slug, info);
         return [member.slug, info] as const;
       } catch {
         return null;
       }
     }),
   );
-  const fresh = rows.filter((row): row is readonly [string, LiveInfo] => row !== null);
+  return rows.filter((row): row is readonly [string, LiveInfo] => row !== null);
+}
+
+export async function refreshMemberLives(
+  people: { slug: string; chzzk: string }[],
+  onUpdate?: (slug: string, info: LiveInfo) => void,
+): Promise<Record<string, LiveInfo>> {
+  const { Capacitor } = await import("@capacitor/core");
+  const fresh = Capacitor.isNativePlatform()
+    ? await readMembers(
+        people,
+        (channelId) => readChzzkDirect(`https://api.chzzk.naver.com/polling/v2/channels/${channelId}/live-status`),
+        onUpdate,
+      )
+    : await readMembers(people, readChzzkPage, onUpdate);
+  // A failed request must not mark anyone offline. Only a real Chzzk answer replaces the snapshot.
   if (fresh.length === 0) return fetchPublishedLive();
   return Object.fromEntries(fresh);
 }

@@ -1,44 +1,19 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
 import { LiveMark } from "@/components/live-mark";
+import { broadcastLine, useLiveStatuses } from "@/components/live-status";
+import { useOshi } from "@/components/oshi";
 import { ProfileAvatar } from "@/components/profile-avatar";
-import { type LiveInfo, liveInfo } from "@/content/live";
 import { chzzkLiveUrl, members } from "@/content/members";
-import { refreshMemberLives } from "@/lib/refresh-live";
 
 export function LiveNow() {
-  const [now, setNow] = useState(() => Date.now());
-  const [statuses, setStatuses] = useState<Record<string, LiveInfo>>(() =>
-    Object.fromEntries(members.map((member) => [member.slug, liveInfo(member.slug)])),
-  );
-  const [refreshing, setRefreshing] = useState(false);
-  const [failed, setFailed] = useState(false);
+  const { now, statuses, refreshing, failed, refresh } = useLiveStatuses();
+  const { slug: oshi } = useOshi();
   const onAir = members
     .filter((member) => statuses[member.slug]?.live)
     .sort((a, b) => (statuses[b.slug]?.viewers ?? 0) - (statuses[a.slug]?.viewers ?? 0));
-  const shown = onAir.slice(0, 3);
-
-  useEffect(() => {
-    const timer = window.setInterval(() => setNow(Date.now()), 30_000);
-    return () => window.clearInterval(timer);
-  }, []);
-
-  async function refresh() {
-    if (refreshing) return;
-    setRefreshing(true);
-    setFailed(false);
-    setNow(Date.now());
-    try {
-      const fresh = await refreshMemberLives(members);
-      setStatuses((current) => ({ ...current, ...fresh }));
-    } catch {
-      setFailed(true);
-    } finally {
-      setRefreshing(false);
-    }
-  }
+  const shown = onAir.filter((member) => member.slug === oshi).concat(onAir.filter((member) => member.slug !== oshi)).slice(0, 3);
 
   return (
     <>
@@ -69,7 +44,7 @@ export function LiveNow() {
         <>
           <p className="mt-2 text-sm text-muted">현재 방송 중인 멤버가 없습니다</p>
           <Link
-            href="/members"
+            href="/live"
             className="mt-5 flex h-12 items-center justify-center rounded-xl bg-violet text-[15px] font-medium text-white md:max-w-xs"
           >
             방송 확인하기
@@ -99,7 +74,7 @@ export function LiveNow() {
             })}
           </ul>
           <Link
-            href="/members"
+            href="/live"
             className="mt-5 flex h-12 items-center justify-center rounded-xl bg-violet text-[15px] font-medium text-white md:max-w-xs"
           >
             방송 확인하기
@@ -130,16 +105,3 @@ function RefreshIcon({ spinning }: { spinning: boolean }) {
   );
 }
 
-function broadcastLine(openDate: string | null, viewers: number, now: number) {
-  const time = openDate ? elapsed(openDate, now) : null;
-  const watching = `시청 ${viewers.toLocaleString("ko-KR")}명`;
-  return time ? `${time} · ${watching}` : watching;
-}
-
-function elapsed(openDate: string, now: number) {
-  const started = new Date(`${openDate.replace(" ", "T")}+09:00`).getTime();
-  const minutes = Math.max(0, Math.floor((now - started) / 60000));
-  const hours = Math.floor(minutes / 60);
-  const rest = minutes % 60;
-  return hours > 0 ? `${hours}시간 ${rest}분` : `${rest}분`;
-}
