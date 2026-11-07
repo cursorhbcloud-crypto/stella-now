@@ -55,9 +55,9 @@
     "openDate": null
   },
   "rang": {
-    "live": true,
-    "viewers": 7252,
-    "openDate": "2026-11-06 16:30:30"
+    "live": false,
+    "viewers": 0,
+    "openDate": null
   },
   "hiyori": {
     "live": false,
