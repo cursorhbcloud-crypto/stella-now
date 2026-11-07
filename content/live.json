@@ -40,9 +40,9 @@
     "openDate": null
   },
   "nana": {
-    "live": false,
-    "viewers": 0,
-    "openDate": null
+    "live": true,
+    "viewers": 13203,
+    "openDate": "2026-11-07 15:02:18"
   },
   "riko": {
     "live": false,
