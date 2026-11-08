@@ -1,13 +1,13 @@
 {
   "yuni": {
+    "live": true,
+    "viewers": 4327,
+    "openDate": "2026-11-08 18:49:27"
+  },
+  "huya": {
     "live": false,
     "viewers": 0,
     "openDate": null
-  },
-  "huya": {
-    "live": true,
-    "viewers": 3475,
-    "openDate": "2026-11-08 17:01:05"
   },
   "hina": {
     "live": false,
@@ -15,58 +15,58 @@
     "openDate": null
   },
   "mashiro": {
-    "live": true,
-    "viewers": 3497,
-    "openDate": "2026-11-08 16:46:56"
-  },
-  "lize": {
     "live": false,
     "viewers": 0,
     "openDate": null
   },
-  "tabi": {
+  "lize": {
     "live": true,
-    "viewers": 9482,
-    "openDate": "2026-11-08 15:20:10"
+    "viewers": 2740,
+    "openDate": "2026-11-08 20:52:33"
+  },
+  "tabi": {
+    "live": false,
+    "viewers": 0,
+    "openDate": null
   },
   "shibuki": {
     "live": true,
-    "viewers": 2956,
+    "viewers": 6014,
     "openDate": "2026-11-08 18:02:40"
   },
   "rin": {
+    "live": true,
+    "viewers": 4430,
+    "openDate": "2026-11-08 19:59:32"
+  },
+  "nana": {
     "live": false,
     "viewers": 0,
     "openDate": null
   },
-  "nana": {
-    "live": true,
-    "viewers": 9253,
-    "openDate": "2026-11-08 14:13:21"
-  },
   "riko": {
     "live": true,
-    "viewers": 3946,
+    "viewers": 2994,
     "openDate": "2026-11-08 16:59:37"
   },
   "toa": {
     "live": true,
-    "viewers": 8064,
+    "viewers": 4044,
     "openDate": "2026-11-08 16:29:17"
   },
   "rang": {
-    "live": false,
-    "viewers": 0,
-    "openDate": null
+    "live": true,
+    "viewers": 3556,
+    "openDate": "2026-11-08 22:00:19"
   },
   "hiyori": {
-    "live": false,
-    "viewers": 0,
-    "openDate": null
+    "live": true,
+    "viewers": 24078,
+    "openDate": "2026-11-08 20:31:06"
   },
   "mary": {
     "live": true,
-    "viewers": 14139,
+    "viewers": 7484,
     "openDate": "2026-11-08 17:11:55"
   }
 }
