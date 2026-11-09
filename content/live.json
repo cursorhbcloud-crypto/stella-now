@@ -25,9 +25,9 @@
     "openDate": null
   },
   "tabi": {
-    "live": false,
-    "viewers": 0,
-    "openDate": null
+    "live": true,
+    "viewers": 1593,
+    "openDate": "2026-11-09 15:00:22"
   },
   "shibuki": {
     "live": false,
