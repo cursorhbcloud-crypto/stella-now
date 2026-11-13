@@ -50,19 +50,19 @@
     "openDate": null
   },
   "toa": {
-    "live": true,
-    "viewers": 2923,
-    "openDate": "2026-11-12 17:25:31"
+    "live": false,
+    "viewers": 0,
+    "openDate": null
   },
   "rang": {
-    "live": true,
-    "viewers": 3323,
-    "openDate": "2026-11-12 17:30:22"
+    "live": false,
+    "viewers": 0,
+    "openDate": null
   },
   "hiyori": {
-    "live": true,
-    "viewers": 9801,
-    "openDate": "2026-11-12 21:00:15"
+    "live": false,
+    "viewers": 0,
+    "openDate": null
   },
   "mary": {
     "live": false,
