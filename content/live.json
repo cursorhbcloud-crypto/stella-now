@@ -1,8 +1,8 @@
 {
   "yuni": {
-    "live": true,
-    "viewers": 4985,
-    "openDate": "2026-11-13 22:11:46"
+    "live": false,
+    "viewers": 0,
+    "openDate": null
   },
   "huya": {
     "live": false,
@@ -25,14 +25,14 @@
     "openDate": null
   },
   "tabi": {
-    "live": true,
-    "viewers": 2373,
-    "openDate": "2026-11-13 14:57:10"
+    "live": false,
+    "viewers": 0,
+    "openDate": null
   },
   "shibuki": {
-    "live": true,
-    "viewers": 5008,
-    "openDate": "2026-11-13 18:31:18"
+    "live": false,
+    "viewers": 0,
+    "openDate": null
   },
   "rin": {
     "live": false,
@@ -45,14 +45,14 @@
     "openDate": null
   },
   "riko": {
-    "live": true,
-    "viewers": 4237,
-    "openDate": "2026-11-13 19:29:44"
+    "live": false,
+    "viewers": 0,
+    "openDate": null
   },
   "toa": {
-    "live": true,
-    "viewers": 6079,
-    "openDate": "2026-11-13 17:30:47"
+    "live": false,
+    "viewers": 0,
+    "openDate": null
   },
   "rang": {
     "live": false,
