@@ -20,9 +20,9 @@
     "openDate": null
   },
   "lize": {
-    "live": true,
-    "viewers": 2196,
-    "openDate": "2026-11-15 21:01:26"
+    "live": false,
+    "viewers": 0,
+    "openDate": null
   },
   "tabi": {
     "live": false,
@@ -60,9 +60,9 @@
     "openDate": null
   },
   "hiyori": {
-    "live": true,
-    "viewers": 12072,
-    "openDate": "2026-11-15 22:29:50"
+    "live": false,
+    "viewers": 0,
+    "openDate": null
   },
   "mary": {
     "live": false,
