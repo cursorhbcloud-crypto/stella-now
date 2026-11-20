@@ -1,8 +1,8 @@
 {
   "yuni": {
-    "live": true,
-    "viewers": 2428,
-    "openDate": "2026-11-20 19:25:00"
+    "live": false,
+    "viewers": 0,
+    "openDate": null
   },
   "huya": {
     "live": false,
@@ -35,9 +35,9 @@
     "openDate": null
   },
   "rin": {
-    "live": true,
-    "viewers": 3374,
-    "openDate": "2026-11-20 20:25:42"
+    "live": false,
+    "viewers": 0,
+    "openDate": null
   },
   "nana": {
     "live": false,
@@ -60,13 +60,13 @@
     "openDate": null
   },
   "hiyori": {
-    "live": true,
-    "viewers": 12423,
-    "openDate": "2026-11-20 23:30:21"
+    "live": false,
+    "viewers": 0,
+    "openDate": null
   },
   "mary": {
-    "live": true,
-    "viewers": 7732,
-    "openDate": "2026-11-20 16:57:36"
+    "live": false,
+    "viewers": 0,
+    "openDate": null
   }
 }
